@@ -1,0 +1,36 @@
+# ---- Secrets & personal data (never commit these) ----
+credentials.json
+token.json
+applications.db
+applications.db-wal
+applications.db-shm
+job_tracker.csv
+sync_state.json
+sync_state.json.tmp
+cv_profile.txt
+application_audit.csv
+ai_cache.json
+opencode_session.txt
+backups/
+*.pdf
+.streamlit/secrets.toml
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+
+# ---- Scratch / experiments ----
+scratch/
+
+# ---- OS / editors ----
+Thumbs.db
+desktop.ini
+.DS_Store
+.idea/
+.vscode/
