@@ -44,3 +44,6 @@ desktop.ini
 .DS_Store
 .idea/
 .vscode/
+demo.db
+demo_job_tracker.csv
+demo_sync_state.json

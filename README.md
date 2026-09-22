@@ -4,6 +4,10 @@ A personal job-application tracker: sync Gmail, filter out the noise, track ever
 application automatically, and read the search through visualisations benchmarked against
 published hiring data.
 
+![Dashboard overview - funnel and benchmarks against published hiring data](docs/screenshots/dashboard-overview.png)
+
+_Screenshots run on a synthetic dataset (`demo_seed.py`) - no real application data._
+
 ```bash
 launch_dashboard.bat        # or: streamlit run dashboard.py
 ```
@@ -33,6 +37,10 @@ backfill_dates.py       one-off repair for last_updated semantics
 tests/                  hermetic unit tests
 docs/                   documentation
 .streamlit/config.toml  theme + server config
+
+demo_seed.py            synthetic dataset generator (screenshots / demos)
+demo_wrapper.py         dashboard on demo.db - never touches real data
+screenshots.py          README screenshot capture (Playwright)
 ```
 
 Data files (created on first run, never committed):
