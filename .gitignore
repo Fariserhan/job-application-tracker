@@ -7,13 +7,21 @@ applications.db-shm
 job_tracker.csv
 sync_state.json
 sync_state.json.tmp
-cv_profile.txt
-application_audit.csv
-ai_cache.json
-opencode_session.txt
 backups/
 *.pdf
 .streamlit/secrets.toml
+cv/
+PROJECT RECORD.md
+.firecrawl/
+TQ7A1628.jpg
+WhatsApp Image*.jpeg
+WhatsApp Image*.jpg
+
+# ---- Generated output (rebuildable from the database) ----
+bi_pack/
+warehouse.db
+warehouse.db-wal
+warehouse.db-shm
 
 # ---- Python ----
 __pycache__/
@@ -27,6 +35,8 @@ venv/
 
 # ---- Scratch / experiments ----
 scratch/
+*.bak
+*.bak-*
 
 # ---- OS / editors ----
 Thumbs.db

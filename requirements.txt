@@ -1,9 +1,7 @@
 google-api-python-client>=2.100.0
 google-auth>=2.23.0
 google-auth-oauthlib>=1.0.0
-openai>=1.40.0
 requests>=2.31.0
 streamlit>=1.36.0
 pandas>=2.0.0
 plotly>=5.22.0
-qrcode[pil]>=7.4

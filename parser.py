@@ -502,26 +502,6 @@ SIGNATURE_MARKERS = [
     r"want to change how you receive these emails",
 ]
 
-LLM_SCHEMA = {
-    "name": "job_application_extract",
-    "strict": True,
-    "schema": {
-        "type": "object",
-        "properties": {
-            "company_name": {"type": "string"},
-            "role_title": {"type": "string"},
-            "current_status": {"type": "string", "enum": STATUSES},
-            "is_valid_application": {"type": "boolean"},
-            "confidence": {"type": "number"},
-        },
-        "required": [
-            "company_name", "role_title", "current_status",
-            "is_valid_application", "confidence",
-        ],
-        "additionalProperties": False,
-    },
-}
-
 
 def parse_message(message: dict, body_text: str = "", allow_llm: bool = True) -> dict:
     subject = message.get("subject") or "(no subject)"
@@ -581,29 +561,13 @@ def parse_message(message: dict, body_text: str = "", allow_llm: bool = True) ->
         body_status = _detect_status(sanitized)
         if body_status and STATUS_RANK[body_status] >= STATUS_RANK.get(result["current_status"], -1):
             result["current_status"] = body_status
-        needs_llm = not (result["company_name"] and result["role_title"]
-                         and result["current_status"])
-        if needs_llm and allow_llm:
-            llm_result = llm_extract(subject, sanitized, sender)
-            if llm_result:
-                result["used_llm"] = True
-                if llm_result.get("company_name"):
-                    result["company_name"] = llm_result["company_name"]
-                if llm_result.get("role_title"):
-                    result["role_title"] = llm_result["role_title"]
-                if llm_result.get("current_status") in STATUSES:
-                    new_status = llm_result["current_status"]
-                    if STATUS_RANK[new_status] >= STATUS_RANK.get(result["current_status"], -1):
-                        result["current_status"] = new_status
-                if llm_result.get("is_valid_application") is False:
-                    result["is_valid"] = False
     else:
         # Give affirmation-missed rows a second chance with the full body;
         # skip bodies for hard-blacklisted rows (saves quota).
-        needs_llm = not (result["company_name"] and result["role_title"]
-                         and result["current_status"])
+        needs_body = not (result["company_name"] and result["role_title"]
+                          and result["current_status"])
         second_chance = result["filter_reason"] == "no positive affirmation"
-        result["needs_body"] = result["is_valid"] or needs_llm or second_chance
+        result["needs_body"] = result["is_valid"] or needs_body or second_chance
 
     if not result["current_status"]:
         result["current_status"] = "Applied"
@@ -794,39 +758,13 @@ def sanitize_body(body_text: str) -> str:
 
 
 def llm_extract(subject: str, body_snippet: str, sender: str):
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return None
-    try:
-        from openai import OpenAI
+    """Removed: the optional LLM extraction pass was dropped with the rest of the AI layer.
 
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
-            model=os.environ.get("LLM_MODEL", "gpt-4o-mini"),
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Extract job application details from a recruitment email. "
-                        "Infer the company from the sender domain if not explicit. "
-                        "Map the email to the closest status. "
-                        "Set is_valid_application=false for newsletters, job alerts, digests, "
-                        "or career-advice content. Return low confidence if unsure."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": f"From: {sender}\nSubject: {subject}\n\nBody:\n{body_snippet}",
-                },
-            ],
-            response_format={"type": "json_schema", "json_schema": LLM_SCHEMA},
-            temperature=0,
-            max_tokens=200,
-        )
-        return json.loads(response.choices[0].message.content)
-    except Exception as exc:
-        print(f"[parser] LLM extraction failed: {exc}")
-        return None
+    Kept as an explicit no-op so any stale caller gets the documented "no result" behaviour
+    instead of an AttributeError, and so nothing silently re-adds a network dependency to
+    the parser. Extraction is fully deterministic.
+    """
+    return None
 
 
 def _parse_subject(subject: str) -> tuple:

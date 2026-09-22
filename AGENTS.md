@@ -1,29 +1,52 @@
 # Job Application Suite - agent guide
 
-Personal job-application tracker: Gmail sync -> parse/classify -> match/scoring -> Streamlit dashboard.
+Gmail sync -> parse/classify -> SQL star-schema warehouse -> one Streamlit tracker with
+automatic visualisations + a BI pack (Excel / Power BI DAX / Tableau).
+
+## Removed features — do not reintroduce
+- **Job search / discovery** (removed 2026-09-12): no `discovery.py`, no market scanner,
+  no `scan_market`. The tracker does not search job boards.
+- **CV matching / fit scoring** (removed 2026-09-12): no `matcher.py`, no `cv_profile.txt`,
+  no `fit_score` anywhere. `tests/test_dashboard_smoke.py` asserts these stay gone.
 
 ## Commands
-- Run all tests (hermetic; touches no personal data): `venv\Scripts\python.exe -m unittest discover -s tests`
-- Or double-click `run_tests.bat`
-- Sync entry point: `main.py`  |  Dashboard: `streamlit run dashboard.py` (or `launch_dashboard.bat`)
-- Install deps: `venv\Scripts\pip.exe install -r requirements.txt`
+- Tests: `venv\Scripts\python.exe -m unittest discover -s tests`
+- Sync: `main.py`  |  Dashboard: `streamlit run dashboard.py` (or `launch_dashboard.bat`)
+- Analytics warehouse: `warehouse.py` (DDL + `build_warehouse()`), `warehouse_etl.py`
+  (ETL), `warehouse_queries.py` (the SQL library — CTEs, window functions)
+- BI pack: `bi_export.py` -> `bi_pack/job_applications.csv`, `bi_pack/excel/*.csv`,
+  `bi_pack/bi/measures.dax`, `bi_pack/bi/calculations.tableau`, `bi_pack/bi/model_spec.json`
+- Date repair: `backfill_dates.py` (dry run; `--apply` backs up first)
+- Theme: `.streamlit/config.toml` (financial-dashboard preset). Do NOT inject custom CSS.
 
-## Environment
-- Windows + PowerShell, Python 3.12 inside `venv/`.
-- Do NOT add new dependencies without asking. The app must keep working on the existing venv with only free/optional LLM providers.
-- The app must run with AI disabled (`AI_DISABLE=1`) and degrade to deterministic logic.
+## Analytics engine (why it exists)
+Faris applies for actuarial / insurance-pricing / reserving / data & BI analyst roles in
+Malaysia. Those JDs screen for SQL, Excel, Power BI, Tableau and star-schema modelling. So
+the tracker's own data is modelled into a real star schema and every number is computed
+**once, in SQL**, then reused by the dashboard, the Excel export, the DAX measures and the
+Tableau fields. Keep it that way: never recompute an analytic in pandas when a query
+already exists, and never let the four surfaces drift.
+
+## Benchmarks are load-bearing
+The dashboard compares itself to published hiring data (`warehouse_queries.py`):
+response rate bands (<2% / 2-3% / 3-5% / 5%+), the 6.87% direct-application interview
+benchmark, and the 100-application funnel (2-3 responses -> 5-10 interviews -> 0-1 offer).
+If you change a band, update the DAX/Tableau equivalents in `bi_export.py` too.
+
+Honesty rules — do not break them:
+- Insurance measures (loss ratio, IBNR, CSM) do NOT apply to this dataset (no premium or
+  claim grain). They must not appear in `bi_export.dax_measures()`.
+- `days_to_response` is NULL when the reply date is unknown. Never zero-fill it.
+- Platform comparisons are indicative, not statistically significant at this sample size.
 
 ## Never read or commit (secrets / personal data)
-`credentials.json`, `token.json`, `applications.db`, `job_tracker.csv`, `cv_profile.txt`,
-`application_audit.csv`, `ai_cache.json`, `opencode_session.txt`, `.streamlit/secrets.toml`,
-`backups/`, `*.pdf`.
+`credentials.json`, `token.json`, `applications.db`, `job_tracker.csv`,
+`sync_state.json`, `.streamlit/secrets.toml`, `backups/`, `*.pdf`.
 
 ## Conventions
-- `ai.py` is defensive by design: every function returns `None`/`{}` on failure and must never raise; callers fall back to deterministic logic. Preserve this property.
-- LLM calls that need JSON go through `ai.batch_json` (native JSON mode + disk cache). Do not hand-roll model-output parsing elsewhere.
-- AI fit scores are keyed by CV signature; keep cache keys stable so unchanged rows are never re-scored.
-- The real CV text is sent to the fit scorer (`ai._candidate_brief`), so editing the CV changes scores.
-- Each module has hermetic unit tests under `tests/` (`unittest`, network/LLM mocked). Add a test for any non-trivial logic change.
-
-## Search
-- Prefer `ast-grep` for structural code search (see the `ast-grep` skill). Scope explicit paths/files so it does not scan `venv/`.
+- The parser is fully deterministic and offline — no LLM/AI layer exists any more.
+  Do not reintroduce a network dependency into parsing.
+- Python 3.12 in `venv/`; no new deps without asking.
+- Warehouse/BI/dashboard code is stdlib + pandas/numpy + plotly only, deterministic.
+- Hermetic `unittest` per module (network mocked). Add a test for non-trivial changes.
+- Structural code search: prefer `ast-grep`, scoped paths (skip `venv/`).

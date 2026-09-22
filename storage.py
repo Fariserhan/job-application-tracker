@@ -25,16 +25,11 @@ COLUMNS = [
     "gmail_link",
     "latest_subject",
     "is_valid",
-    "fit_score",
-    "matched_skills",
-    "missing_skills",
-    "actionable_improvements",
     "filter_reason",
     "job_type",
     "seniority_level",
     "industry",
     "notes",
-    "fit_source",
 ]
 
 CREATE_TABLE = """
@@ -59,18 +54,11 @@ STATUS_MIGRATIONS = [
     ("UPDATE applications SET current_status = 'Ghosted' WHERE current_status = 'Ghosted/Inactive'"),
 ]
 
-FIT_COLUMNS = {
-    "fit_score": "REAL",
-    "matched_skills": "TEXT DEFAULT ''",
-    "missing_skills": "TEXT DEFAULT ''",
-    "actionable_improvements": "TEXT DEFAULT ''",
+EXTRA_COLUMNS = {
     "filter_reason": "TEXT DEFAULT ''",
     "job_type": "TEXT DEFAULT ''",
     "seniority_level": "TEXT DEFAULT ''",
     "industry": "TEXT DEFAULT ''",
-    "fit_source": "TEXT DEFAULT 'rule'",
-    "fit_cv_sig": "TEXT DEFAULT ''",
-    "ai_classified": "INTEGER DEFAULT 0",
 }
 
 NOTE_COLUMNS = {
@@ -104,9 +92,6 @@ CREATE TABLE IF NOT EXISTS discovered_jobs (
     description TEXT DEFAULT '',
     posted_date TEXT DEFAULT '',
     search_role TEXT DEFAULT '',
-    fit_score REAL,
-    matched_skills TEXT DEFAULT '',
-    missing_skills TEXT DEFAULT '',
     discovered_at TEXT
 )
 """
@@ -162,10 +147,10 @@ def _migrate(conn):
         else:
             conn.execute("ALTER TABLE applications ADD COLUMN is_valid INTEGER NOT NULL DEFAULT 1")
 
-    # CV fit-analyzer columns (in-place, additive)
-    fit_cols = {row["name"] for row in conn.execute("PRAGMA table_info(applications)")}
-    for column, definition in FIT_COLUMNS.items():
-        if column not in fit_cols:
+    # Classification columns (in-place, additive)
+    extra_cols = {row["name"] for row in conn.execute("PRAGMA table_info(applications)")}
+    for column, definition in EXTRA_COLUMNS.items():
+        if column not in extra_cols:
             conn.execute(f"ALTER TABLE applications ADD COLUMN {column} {definition}")
 
     # Per-application free-text notes (additive)
@@ -297,9 +282,31 @@ def upsert_application(record: dict) -> str:
         if platform == "Other" and existing["source_platform"] not in ("", "Other"):
             platform = existing["source_platform"]
 
+        # --- date semantics ---
+        # `application_date` is when the candidate applied (the FIRST message). `last_updated`
+        # is when the employer/thread last moved. They differ, and that difference IS the
+        # waiting/response-time metric the dashboard reports. The incoming record carries the
+        # message's own date for both fields, so stamping last_updated from it directly made
+        # every thread look "updated" on the day it was applied — which silently zeroed
+        # days-waiting and days-to-response for the whole tracker. Only advance the timestamp
+        # when this message actually changes something, and never move it to a later real date
+        # than the message it came from.
+        changed = (
+            status != existing["current_status"]
+            or company != existing["company_name"]
+            or role != existing["role_title"]
+            or bool(record.get("job_url") and not existing["job_url"])
+            or bool(record.get("job_description_snippet")
+                    and not existing["job_description_snippet"])
+        )
+        if changed:
+            new_last_updated = max(str(existing["last_updated"] or ""), incoming_ts)
+        else:
+            new_last_updated = existing["last_updated"]
+
         conn.execute(
             "UPDATE applications SET company_name = ?, role_title = ?, source_platform = ?, "
-            "current_status = ?, last_updated = MAX(last_updated, ?), latest_subject = ?, "
+            "current_status = ?, last_updated = ?, latest_subject = ?, "
             "is_valid = ?, "
             "job_type = CASE WHEN ? != '' THEN ? ELSE job_type END, "
             "seniority_level = CASE WHEN ? != '' THEN ? ELSE seniority_level END, "
@@ -314,7 +321,7 @@ def upsert_application(record: dict) -> str:
                 role,
                 platform,
                 status,
-                incoming_ts,
+                new_last_updated,
                 record["latest_subject"],
                 merged_valid,
                 record.get("job_type", ""), record.get("job_type", ""),
@@ -482,13 +489,12 @@ def backup_to(path: str) -> str:
 
 
 def backup_all(backup_dir: str = "backups") -> str:
-    """Backup DB + CSV + sync state + CV profile + AI cache into backups/<timestamp>/."""
+    """Backup DB + CSV + sync state + CV profile into backups/<timestamp>/."""
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     folder = os.path.join(backup_dir, stamp)
     os.makedirs(folder, exist_ok=True)
     backup_to(os.path.join(folder, "applications.db"))
-    for filename in (CSV_PATH, STATE_PATH, "cv_profile.txt",
-                     os.environ.get("AI_CACHE_PATH", "ai_cache.json")):
+    for filename in (CSV_PATH, STATE_PATH, "cv_profile.txt"):
         if filename and os.path.exists(filename):
             try:
                 shutil.copy2(filename, os.path.join(folder, os.path.basename(filename)))
@@ -555,90 +561,6 @@ def save_state(state: dict):
     with open(tmp, "w", encoding="utf-8") as state_file:
         json.dump(state, state_file, indent=2)
     os.replace(tmp, STATE_PATH)
-
-
-def _clean_score(value):
-    """Coerce a fit score to a float in [0, 100]; None when unusable."""
-    try:
-        score = float(value)
-    except (TypeError, ValueError):
-        return None
-    if score != score:  # NaN
-        return None
-    return max(0.0, min(100.0, score))
-
-
-def _clean_skill_list(value, limit: int = 30) -> list:
-    if isinstance(value, str):
-        value = [value]
-    if not isinstance(value, (list, tuple, set)):
-        return []
-    out = []
-    for item in value:
-        text = str(item).strip()
-        if not text or text.lower() in ("nan", "none"):
-            continue
-        out.append(text[:80])
-        if len(out) >= limit:
-            break
-    return out
-
-
-def _sanitize_fit_payload(payload: dict) -> dict | None:
-    """Normalise an analyzer/AI payload; None when it carries no usable score."""
-    if not isinstance(payload, dict):
-        return None
-    score = _clean_score(payload.get("fit_score"))
-    if score is None:
-        return None
-    return {
-        "fit_score": score,
-        "matched_skills": _clean_skill_list(payload.get("matched_skills")),
-        "missing_skills": _clean_skill_list(payload.get("missing_skills")),
-        "actionable_improvements": _clean_skill_list(
-            payload.get("actionable_improvements"), limit=6),
-    }
-
-
-def save_fit_results(results: dict, cv_sig: str = "") -> int:
-    """results: {thread_id: {fit_score, matched_skills, missing_skills, actionable_improvements}}.
-
-    Marks fit_source='rule' + the CV signature so a later sync can tell whether the stored
-    score is still current (and only recompute when the CV changed).
-    """
-    updated = 0
-    with _connect() as conn:
-        for thread_id, payload in results.items():
-            clean = _sanitize_fit_payload(payload)
-            if clean is None:
-                continue
-            cursor = conn.execute(
-                "UPDATE applications SET fit_score = ?, matched_skills = ?, "
-                "missing_skills = ?, actionable_improvements = ?, "
-                "fit_source = 'rule', fit_cv_sig = ? WHERE thread_id = ?",
-                (
-                    clean["fit_score"],
-                    json.dumps(clean["matched_skills"]),
-                    json.dumps(clean["missing_skills"]),
-                    json.dumps(clean["actionable_improvements"]),
-                    cv_sig,
-                    thread_id,
-                ),
-            )
-            if cursor.rowcount > 0:
-                updated += 1
-    return updated
-
-
-def get_fit_pending() -> list:
-    """Valid rows that have text to analyze but no stored fit score yet."""
-    with _connect() as conn:
-        rows = conn.execute(
-            "SELECT thread_id, role_title, job_description_snippet FROM applications "
-            "WHERE is_valid = 1 AND (fit_score IS NULL OR fit_score < 0) "
-            "AND job_description_snippet != ''"
-        ).fetchall()
-    return [dict(r) for r in rows]
 
 
 def update_snippet(thread_id: str, text: str) -> bool:
@@ -721,14 +643,6 @@ def refine_platform_rows() -> int:
     return updated
 
 
-def get_valid_rows_for_fit() -> list:
-    with _connect() as conn:
-        rows = conn.execute(
-            "SELECT thread_id, role_title, job_description_snippet, fit_score, "
-            "fit_source, fit_cv_sig FROM applications WHERE is_valid = 1"
-        ).fetchall()
-    return [dict(r) for r in rows]
-
 
 def get_all_rows() -> list:
     """Every application row (dicts) for audit/repair passes."""
@@ -803,78 +717,6 @@ def apply_repairs(repairs: list) -> dict:
                 counts["rows"] += 1
     return counts
 
-
-def mark_fit_ai(results: dict, cv_sig: str = "") -> int:
-    """Persist AI-computed fit scores (fit_source='ai' + CV signature) so they are never
-    recomputed until the CV changes."""
-    updated = 0
-    with _connect() as conn:
-        for thread_id, payload in results.items():
-            clean = _sanitize_fit_payload(payload)
-            if clean is None:
-                continue
-            cursor = conn.execute(
-                "UPDATE applications SET fit_score = ?, matched_skills = ?, missing_skills = ?, "
-                "actionable_improvements = ?, fit_source = 'ai', fit_cv_sig = ? "
-                "WHERE thread_id = ?",
-                (
-                    clean["fit_score"],
-                    json.dumps(clean["matched_skills"]),
-                    json.dumps(clean["missing_skills"]),
-                    json.dumps(clean["actionable_improvements"]),
-                    cv_sig,
-                    thread_id,
-                ),
-            )
-            if cursor.rowcount > 0:
-                updated += 1
-    return updated
-
-
-def apply_ai_classification(results: dict) -> int:
-    """Apply AI email-classification verdicts (with memory) to application rows.
-
-    results: {thread_id: {is_valid, company, role, status, reason}} — marks ai_classified=1
-    so the same email is never re-classified on later syncs. Only known statuses are accepted,
-    and a manually recovered row is never pushed back into the noise pile.
-    """
-    updated = 0
-    with _connect() as conn:
-        for thread_id, payload in results.items():
-            if not isinstance(payload, dict):
-                continue
-            fields = []
-            values = []
-            is_valid = payload.get("is_valid")
-            if is_valid is not None:
-                fields.append(
-                    "is_valid = CASE WHEN filter_reason LIKE 'manual%' THEN is_valid ELSE ? END")
-                values.append(1 if is_valid else 0)
-            company = (payload.get("company") or "").strip()
-            if company and not parser.is_platform_company(company):
-                fields.append("company_name = ?")
-                values.append(company[:200])
-            role = (payload.get("role") or "").strip()
-            if role and parser.looks_like_role(role):
-                fields.append("role_title = ?")
-                values.append(role[:200])
-            status = (payload.get("status") or "").strip()
-            if status in parser.STATUSES:
-                fields.append("current_status = ?")
-                values.append(status)
-            reason = (payload.get("reason") or "").strip()
-            if reason:
-                fields.append(
-                    "filter_reason = CASE WHEN filter_reason LIKE 'manual%' "
-                    "THEN filter_reason ELSE ? END")
-                values.append(f"ai: {reason[:200]}")
-            fields.append("ai_classified = 1")
-            values.append(thread_id)
-            conn.execute(
-                f"UPDATE applications SET {', '.join(fields)} WHERE thread_id = ?", values
-            )
-            updated += 1
-    return updated
 
 
 def update_status(thread_id: str, status: str, note: str = "") -> bool:
@@ -975,33 +817,6 @@ def delete_application(thread_id: str) -> bool:
         return cursor.rowcount > 0
 
 
-def get_tracked_discovery_keys() -> set:
-    """job_keys currently present in the tracker as manual (discovery) rows."""
-    with _connect() as conn:
-        rows = conn.execute(
-            "SELECT thread_id FROM applications WHERE thread_id LIKE 'manual:%'"
-        ).fetchall()
-    return {r["thread_id"][len("manual:"):] for r in rows}
-
-
-def save_discovered_fits(results: dict) -> int:
-    """results: {job_key: {fit_score, matched_skills, missing_skills}}"""
-    updated = 0
-    with _connect() as conn:
-        for job_key, payload in results.items():
-            conn.execute(
-                "UPDATE discovered_jobs SET fit_score = ?, matched_skills = ?, "
-                "missing_skills = ? WHERE job_key = ?",
-                (
-                    payload.get("fit_score"),
-                    json.dumps(payload.get("matched_skills", [])),
-                    json.dumps(payload.get("missing_skills", [])),
-                    job_key,
-                ),
-            )
-            updated += 1
-    return updated
-
 
 def set_valid(thread_id: str, is_valid: bool = True, reason: str = "manual recovery") -> bool:
     """Manual override of the noise verdict.
@@ -1028,64 +843,6 @@ def set_valid(thread_id: str, is_valid: bool = True, reason: str = "manual recov
             _log_history(conn, thread_id, None, None, f"marked as noise — {reason}")
         return cursor.rowcount > 0
 
-
-def save_discovered(jobs: list) -> int:
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    with _connect() as conn:
-        conn.execute("DELETE FROM discovered_jobs")
-        for job in jobs:
-            conn.execute(
-                "INSERT OR REPLACE INTO discovered_jobs (job_key, title, company, location, "
-                "source, url, description, posted_date, search_role, fit_score, "
-                "matched_skills, missing_skills, discovered_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    job.get("job_key"),
-                    job.get("title", ""),
-                    job.get("company", ""),
-                    job.get("location", ""),
-                    job.get("source", ""),
-                    job.get("url", ""),
-                    job.get("description", "")[:800],
-                    job.get("posted_date", ""),
-                    job.get("search_role", ""),
-                    job.get("fit_score"),
-                    json.dumps(job.get("matched_skills", [])),
-                    json.dumps(job.get("missing_skills", [])),
-                    now,
-                ),
-            )
-        return len(jobs)
-
-
-def load_discovered() -> list:
-    with _connect() as conn:
-        rows = conn.execute(
-            "SELECT * FROM discovered_jobs ORDER BY fit_score DESC"
-        ).fetchall()
-    return [dict(r) for r in rows]
-
-
-def clear_discovered():
-    with _connect() as conn:
-        conn.execute("DELETE FROM discovered_jobs")
-
-
-def update_discovered_description(job_key: str, description: str, analysis: dict) -> bool:
-    """Persist a lazily-fetched JD (and its re-scored fit) into the discovery cache."""
-    with _connect() as conn:
-        cursor = conn.execute(
-            "UPDATE discovered_jobs SET description = ?, fit_score = ?, "
-            "matched_skills = ?, missing_skills = ? WHERE job_key = ?",
-            (
-                (description or "")[:2000],
-                analysis.get("fit_score"),
-                json.dumps(analysis.get("matched_skills", [])),
-                json.dumps(analysis.get("missing_skills", [])),
-                job_key,
-            ),
-        )
-        return cursor.rowcount > 0
 
 
 def add_manual_application(job: dict) -> str:
@@ -1123,18 +880,6 @@ def add_manual_application(job: dict) -> str:
                 record["source_platform"], record["application_date"], record["current_status"],
                 record["last_updated"], record["job_description_snippet"], record["job_url"],
                 record["gmail_link"], record["latest_subject"], 1,
-            ),
-        )
-        # carry over the fit analysis computed during discovery
-        conn.execute(
-            "UPDATE applications SET fit_score = ?, matched_skills = ?, missing_skills = ?, "
-            "actionable_improvements = ? WHERE thread_id = ?",
-            (
-                job.get("fit_score"),
-                json.dumps(job.get("matched_skills", [])),
-                json.dumps(job.get("missing_skills", [])),
-                "[]",
-                thread_id,
             ),
         )
     return "added"

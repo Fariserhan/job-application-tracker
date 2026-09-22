@@ -18,11 +18,9 @@ import streamlit as st
 
 import enricher
 import main as sync_engine
-import matcher
 import parser
 import repair
 import storage
-import ai
 from parser import STATUSES
 
 st.set_page_config(page_title="Job Application Suite", page_icon="🎯", layout="wide")
@@ -35,8 +33,6 @@ FUNNEL_STAGES = ["Applied", "Assessment / OA", "Interview", "Offer"]
 PLATFORM_ORDER = ["LinkedIn", "JobStreet", "Hiredly", "Prosple", "Direct ATS", "Other"]
 STALE_DAYS = 21
 FOLLOWUP_AFTER_DAYS = 5
-DISCOVERY_ROLES = ["Actuarial Analyst", "Risk Analyst", "Data Analyst", "Business Intelligence Analyst"]
-
 FOLLOWUP_WATCH_STATUSES = ["Applied", "Assessment / OA"]
 
 # URL shapes that are *never* a real job page: board email click-tracking redirects
@@ -104,7 +100,7 @@ PLATFORM_COLORS = {
     "Other": "#9AA0A6",
 }
 
-TABLE_COLUMNS = ["Company", "Role", "Platform", "Type", "Status", "Application Date", "Fit Score", "Last Update", "Waiting", "Gmail Thread"]
+TABLE_COLUMNS = ["Company", "Role", "Platform", "Type", "Status", "Application Date", "Last Update", "Waiting", "Gmail Thread"]
 
 GARBAGE_SUBJECT_PATTERNS = [
     r"quora", r"\bdigest\b", r"job alert", r"newsletter", r"jobs? you may",
@@ -397,28 +393,6 @@ st.markdown("""
 
 COLORWAY = ["#4F8CFF", "#00CC96", "#FFA15A", "#AB63FA", "#EF553B", "#FFD166", "#22D3EE"]
 
-PE_CSS_ANIM = """
-    .js-plotly-plot .barlayer path,
-    .js-plotly-plot .scatterlayer path,
-    .js-plotly-plot .funnellayer path {
-        pointer-events: all !important;
-        transition: transform .12s cubic-bezier(.16,1,.3,1), filter .12s ease, opacity .12s ease;
-        transform-box: fill-box;
-    }
-    .js-plotly-plot .barlayer path {transform-origin: 50% 100%;}
-    .js-plotly-plot .barlayer path:hover {
-        transform: scaleY(1.18) scaleX(1.22); filter: brightness(1.85) drop-shadow(0 0 6px rgba(79,140,255,.7));
-    }
-    .js-plotly-plot .scatterlayer path {transform-origin: 50% 50%;}
-    .js-plotly-plot .scatterlayer path:hover {
-        transform: scale(2.8); filter: brightness(1.6) drop-shadow(0 0 9px rgba(79,140,255,1));
-    }
-    .js-plotly-plot .funnellayer path {transform-origin: 50% 50%;}
-    .js-plotly-plot .funnellayer path:hover {
-        transform: scaleY(1.14) scaleX(1.1); filter: brightness(1.85) drop-shadow(0 0 6px rgba(79,140,255,.7));
-    }
-"""
-
 
 def style_fig(fig, height=340):
     """Uniform polished dark styling for every chart."""
@@ -478,11 +452,6 @@ def load_db_file(path: str, mtime: float) -> pd.DataFrame:
         return pd.read_sql_query("SELECT * FROM applications", conn)
     finally:
         conn.close()
-
-
-@st.cache_data(show_spinner="Reading discovered jobs cache...")
-def load_discovered_cached(path: str, mtime: float) -> list:
-    return storage.load_discovered()
 
 
 @st.cache_data(show_spinner="Reading activity log...")
@@ -575,34 +544,7 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = ""
         df[col] = df[col].fillna("").astype(str).str.strip()
 
-    if "fit_score" not in df.columns:
-        df["fit_score"] = None
-    df["fit_score"] = pd.to_numeric(df["fit_score"], errors="coerce")
-    for col, default in (("matched_skills", []), ("missing_skills", []), ("actionable_improvements", [])):
-        if col not in df.columns:
-            df[col] = None
-        df[col] = df[col].apply(_parse_json_list)
     return df
-
-
-def ensure_fit_scores(df: pd.DataFrame):
-    """Lazily score valid rows that have no stored fit score yet (persists to SQLite)."""
-    try:
-        pending = df[(df["is_valid"]) & (df["fit_score"].isna())]
-        if pending.empty:
-            return
-        results = {}
-        for _, row in pending.iterrows():
-            analysis = matcher.analyze(row["role_title"], row["job_description_snippet"])
-            results[row["thread_id"]] = analysis
-            mask = df["thread_id"] == row["thread_id"]
-            df.loc[mask, "fit_score"] = analysis["fit_score"]
-            df.loc[mask, "matched_skills"] = [analysis["matched_skills"]]
-            df.loc[mask, "missing_skills"] = [analysis["missing_skills"]]
-            df.loc[mask, "actionable_improvements"] = [analysis["actionable_improvements"]]
-        storage.save_fit_results(results)
-    except Exception:
-        pass
 
 
 def compute_stale(row) -> bool:
@@ -652,21 +594,6 @@ def generate_insights(valid: pd.DataFrame, stale_count: int) -> list:
         elif len(byp) == 1:
             tips.append(f"🏆 Only **{byp.index[0]}** has ≥3 tracked applications so far — spread channels for comparison.")
 
-        scored = valid.dropna(subset=["fit_score"])
-        pos = scored[scored["current_status"].isin(["Assessment / OA", "Interview", "Offer"])]["fit_score"]
-        rej = scored[scored["current_status"] == "Rejected"]["fit_score"]
-        if len(pos) and len(rej):
-            tips.append(f"🧬 Roles you **progressed in average {pos.mean():.0f}% fit** vs "
-                        f"**{rej.mean():.0f}%** for rejections — treat {max(70, pos.mean()):.0f}%+ as your apply threshold.")
-        elif len(pos):
-            tips.append(f"🧬 Progressed roles average **{pos.mean():.0f}% fit** — keep targeting that band.")
-
-        cnt = Counter(s for row in valid["missing_skills"] for s in (row if isinstance(row, list) else []))
-        if cnt:
-            top = cnt.most_common(3)
-            tips.append("🎯 **Skills to learn first**: " + ", ".join(
-                f"**{s}** (missing in {n} role{'s' if n != 1 else ''})" for s, n in top))
-
         resp = progressed.dropna(subset=["application_date", "last_updated"]).copy()
         if len(resp):
             days = (resp["last_updated"] - resp["application_date"]).dt.days
@@ -699,242 +626,78 @@ def generate_insights(valid: pd.DataFrame, stale_count: int) -> list:
     return tips
 
 
-def ai_want() -> bool:
-    """True when the user enabled AI AND a free local model/endpoint is reachable."""
+
+
+# ------------------------------------------------------------------ analytics layer
+#
+# The numbers below come from the SQL warehouse (warehouse.py / warehouse_queries.py)
+# rather than being recomputed in pandas. That is the whole point of the rebuild: the
+# same query feeds the dashboard, the Excel export, the Power BI measures and the
+# Tableau fields, so the four can never disagree. Each helper falls back to the original
+# pandas computation when the warehouse is unavailable, so a stale warehouse can never
+# break the page.
+
+@st.cache_data(show_spinner=False)
+def _warehouse_ready(path: str, mtime: float) -> bool:
+    return os.path.exists(path)
+
+
+@st.cache_data(show_spinner="Running analytics SQL...")
+def _wq(name: str, db_mtime: float):
+    """Run one warehouse query, cached until the database changes."""
     try:
-        return bool(st.session_state.get("ai_enabled", True)) and ai.available()
+        import warehouse_queries
+
+        return warehouse_queries.query(name)
+    except Exception:
+        return pd.DataFrame()
+
+
+def refresh_warehouse() -> bool:
+    """Rebuild the star schema from the operational tables. Returns True on success."""
+    try:
+        import warehouse
+
+        warehouse.build_warehouse()
+        return True
     except Exception:
         return False
 
 
-def ai_model() -> str:
-    try:
-        return ai.active_model()
-    except Exception:
-        return ai.preferred_model()
-
-
-def run_ai_test():
-    """Send one tiny request so the user can see exactly whether the key+model works."""
-    import time
-    ai.clear_last_error()
-    t0 = time.monotonic()
-    text = ai.generate("You are a connectivity test.",
-                       "Reply with exactly the word: OK", max_tokens=128, temperature=0.0)
-    elapsed = time.monotonic() - t0
-    if text and text.strip().upper() == "OK":
-        st.session_state["ai_test_result"] = ("ok", f"replied in {elapsed:.1f}s",
-                                              ai.provider_label())
-    elif text:
-        st.session_state["ai_test_result"] = ("ok", f"replied '{text.strip()[:40]}' in {elapsed:.1f}s",
-                                              ai.provider_label())
-    else:
-        st.session_state["ai_test_result"] = ("fail",
-                                              f"key {ai.key_preview()} · {ai.last_error() or 'no response'}",
-                                              ai.provider_label())
-
-
-def build_stats_digest(valid: pd.DataFrame, stale_count: int) -> str:
-    """A compact, numbers-only digest of the pipeline that the AI turns into insights."""
-    total = len(valid)
-    counts = {str(k): int(v) for k, v in valid["current_status"].value_counts().items()}
-    interviews = int(valid["current_status"].isin(["Interview", "Offer"]).sum())
-    offers = int((valid["current_status"] == "Offer").sum())
-    progressed = int(valid["current_status"].isin(
-        ["Assessment / OA", "Interview", "Offer", "Rejected"]).sum())
-    response_rate = 100 * progressed / total if total else 0.0
-    scored = valid["fit_score"].dropna()
-    avg_fit = float(scored.mean()) if len(scored) else None
-    resp = valid[valid["current_status"].isin(
-        ["Assessment / OA", "Interview", "Offer", "Rejected"])].dropna(
-        subset=["application_date", "last_updated"]).copy()
-    med_days = None
-    if len(resp):
-        d = (resp["last_updated"] - resp["application_date"]).dt.days
-        d = d[(d >= 0) & (d < 120)]
-        if len(d):
-            med_days = float(d.median())
-    cutoff = pd.Timestamp.today().normalize() - pd.Timedelta(days=30)
-    last30 = int((valid["application_date"] >= cutoff).sum())
-    prev30 = int(((valid["application_date"] >= cutoff - pd.Timedelta(days=30))
-                  & (valid["application_date"] < cutoff)).sum())
-    platforms = {str(k): int(v) for k, v in valid["source_platform"].value_counts().head(5).items()}
-    companies = {str(k): int(v) for k, v in valid["company_name"].value_counts().head(5).items()}
-    missing = Counter(s for row in valid["missing_skills"]
-                      for s in (row if isinstance(row, list) else []))
-    top_missing = [str(s) for s, _ in missing.most_common(5)]
-    lines = [
-        f"Total valid applications: {total}",
-        f"Status counts: {counts}",
-        f"Interview rate (interviews+offers/valid): {100 * interviews / total if total else 0:.1f}% ({interviews})",
-        f"Offers: {offers}",
-        f"Response rate (any employer reply): {response_rate:.1f}%",
-        f"Median employer response days: {med_days if med_days is not None else 'n/a'}",
-        f"Average CV fit score: {avg_fit:.1f}%" if avg_fit is not None else "Average CV fit score: n/a",
-        f"Applications in the last 30 days: {last30} (previous 30: {prev30})",
-        f"Stale / auto-ghosted (no update > {stale_days()} days): {stale_count}",
-        f"Top platforms: {platforms}",
-        f"Top employers applied to: {companies}",
-        f"Most frequently missing skills: {top_missing}",
-    ]
-    return "\n".join(lines)
-
-
-def ai_insights(valid: pd.DataFrame, stale_count: int) -> str | None:
-    if not ai_want():
-        return None
-    try:
-        system = ("You are a sharp, honest career coach for a maths & statistics graduate "
-                  "targeting actuarial, risk and data-analytics roles. Be PRECISE and CONCISE. "
-                  "Use only the numbers given. No preamble, no restating the stats, no filler, "
-                  "no emojis.")
-        prompt = ("My job-search stats:\n" + build_stats_digest(valid, stale_count) +
-                  "\n\nOutput exactly:\n"
-                  "- 4-6 insight bullets (1 sentence each, concrete, using the numbers)\n"
-                  "- '**Next actions**' followed by 3 one-line steps\n"
-                  "Plain markdown. Write at least 150 words — be specific.")
-        text = ai.generate_cached(system, prompt, model=ai_model(), max_tokens=1200)
-        if text and len(text) < 60:
-            return None  # effectively empty — fall back to the deterministic insights
-        return text
-    except Exception:
-        return None
-
-
-def ai_drafts(queue) -> dict:
-    """Batched AI follow-up emails for the shown queue rows -> {thread_id: email}."""
-    if not queue or not ai_want():
+def warehouse_kpis() -> dict:
+    """Headline KPIs straight from SQL. Empty dict when the warehouse is not built yet."""
+    df = _wq("headline_kpis", mtime_of(DB_PATH))
+    if df is None or df.empty:
         return {}
-    try:
-        items = []
-        for row, tier, wait in queue:
-            applied = row.get("application_date")
-            items.append({
-                "id": str(row["thread_id"]),
-                "company": str(row.get("company_name", "") or ""),
-                "role": str(row.get("role_title", "") or ""),
-                "applied": f"{pd.Timestamp(applied):%d %b %Y}" if pd.notna(applied) else "",
-                "waited_days": wait,
-                "situation": ("applied but received no response yet" if tier == "nudge"
-                              else "application went silent / likely ghosted"),
-                "fit": (float(row.get("fit_score")) if pd.notna(row.get("fit_score")) else None),
-                "matched": (row.get("matched_skills") or [])[:4],
-                "missing": (row.get("missing_skills") or [])[:4],
-            })
-        system = ("You are a professional job-search email writer. Write short, tailored follow-up "
-                  "emails — be PRECISE and CONCISE, each email under ~90 words, no fluff.")
-        prompt = ("Return ONLY a JSON object mapping each id to the email text. Each email must "
-                  "have a Subject line and a body (plain text, 3-4 sentences, no markdown, no "
-                  "emojis), personally reference the company and role, and end with one clear, "
-                  "polite ask (request an update / offer extra materials / ask for feedback). "
-                  "The candidate is Faris Erhan, a fresh graduate in maths & statistics.\n\n" +
-                  json.dumps(items, ensure_ascii=False))
-        data = ai.batch_json(system, prompt, model=ai_model(), max_tokens=1200)
-        return {k: str(v) for k, v in data.items() if isinstance(v, str) and v.strip()}
-    except Exception:
-        return {}
-
-
-def ai_gap_narrative(report) -> str | None:
-    if report is None or report.empty or not ai_want():
-        return None
-    try:
-        top = report.head(6)[["Skill", "% of pipeline", "Live market", "Missing in", "On my CV"]]
-        system = ("You are a career strategist for an actuarial/data-analyst job search. Be PRECISE "
-                  "and CONCISE — no preamble, no emojis. Use only the numbers given.")
-        prompt = ("Top skill gaps (skill, % of pipeline demanding it, live listings, times still "
-                  "missing, on my CV?):\n" + json.dumps(top.to_dict("records"), ensure_ascii=False) +
-                  "\n\nOutput: max 3 sentences of prioritized advice + one '**Best next move:**' line.")
-        return ai.generate_cached(system, prompt, model=ai_model(), max_tokens=500)
-    except Exception:
-        return None
-
-
-def ai_market_summary(jobs) -> str | None:
-    if not jobs or not ai_want():
-        return None
-    try:
-        sources = {}
-        for j in jobs:
-            sources[str(j.get("source", ""))] = sources.get(str(j.get("source", "")), 0) + 1
-        top = sorted(jobs, key=lambda j: j.get("fit_score") or 0, reverse=True)[:8]
-        rows = [{
-            "title": j.get("title"), "company": j.get("company"), "source": j.get("source"),
-            "fit": j.get("fit_score"),
-            "top_missing": (_parse_json_list(j.get("missing_skills")) or [])[:2],
-        } for j in top]
-        system = ("You are a Malaysian job-market analyst. Be PRECISE and CONCISE — no preamble, no "
-                  "emojis. Use only the data given.")
-        prompt = (f"Sources: {sources}\nTop roles by fit score:\n" +
-                  json.dumps(rows, ensure_ascii=False) +
-                  "\n\nOutput: max 3 sentences — what's on offer, which roles fit best, and the "
-                  "skills in demand.")
-        return ai.generate_cached(system, prompt, model=ai_model(), max_tokens=450)
-    except Exception:
-        return None
-
-
-def ai_company_strategy(valid: pd.DataFrame) -> str | None:
-    if not ai_want():
-        return None
-    try:
-        g = valid.groupby("company_name").agg(
-            n=("thread_id", "count"),
-            roles=("role_title", lambda s: "; ".join(sorted(
-                {str(x) for x in s if str(x) not in ("", "nan")}))[:180]),
-        ).reset_index()
-        g = g[g["n"] > 1].sort_values("n", ascending=False).head(6)
-        if g.empty:
-            return None
-        system = ("You are a hiring-strategy coach. Be PRECISE and CONCISE — 2-3 sentences, no "
-                  "preamble, no emojis.")
-        prompt = ("Employers I've applied to more than once (company, count, roles):\n" +
-                  json.dumps(g.to_dict("records"), ensure_ascii=False) + "\n\nAdvice?")
-        return ai.generate_cached(system, prompt, model=ai_model(), max_tokens=400)
-    except Exception:
-        return None
-
-
-def ai_activity_summary(feed) -> str | None:
-    if not feed or not ai_want():
-        return None
-    try:
-        lines = []
-        for ev in feed[:8]:
-            lines.append(f"{ev.get('ts')}: {ev.get('company_name')} {ev.get('role_title')} -> "
-                         f"{ev.get('to_status') or ev.get('current_status')}")
-        system = ("You are a job-search momentum tracker. Be PRECISE and CONCISE — 1-2 sentences, no "
-                  "preamble, no emojis.")
-        prompt = "Recent activity:\n" + "\n".join(lines) + "\n\nSummary and next action?"
-        return ai.generate_cached(system, prompt, model=ai_model(), max_tokens=300)
-    except Exception:
-        return None
-
-
-def ai_fit_explanation(title: str, snippet: str, analysis: dict | None) -> str | None:
-    if not analysis or not ai_want():
-        return None
-    try:
-        bd = analysis.get("breakdown") or {}
-        keys = [k for k in bd if not str(k).startswith("_")]
-        parts = [f"{k}: {bd[k]}%" for k in keys if isinstance(bd.get(k), (int, float))]
-        cap = bd.get("_cap")
-        if isinstance(cap, (int, float)) and cap < 90:
-            parts.append(f"capped at {cap:.0f}% (seniority/experience cap)")
-        prompt = (f"Role: {title}\nFit score: {analysis.get('fit_score')}%\nBreakdown: "
-                  + ", ".join(parts) +
-                  f"\nMatched skills: {analysis.get('matched_skills') or []}"
-                  f"\nMissing skills: {analysis.get('missing_skills') or []}")
-        if snippet:
-            prompt += f"\nJD text (first 400 chars): {snippet[:400]}"
-        system = ("You are a CV-fit coach. Be PRECISE and CONCISE — 2-3 sentences, no preamble, "
-                  "no emojis. Concrete and honest.")
-        return ai.generate_cached(system, prompt, model=ai_model(), max_tokens=450)
-    except Exception:
-        return None
+    return {k: v for k, v in df.iloc[0].to_dict().items() if pd.notna(v)}
 
 
 def platform_performance(valid: pd.DataFrame) -> pd.DataFrame:
+    """Platform effectiveness from SQL, falling back to the pandas computation.
+
+    The SQL is the source of truth for the numbers; the column mapping below is derived
+    from whatever the query actually returned rather than assumed, so adding or renaming a
+    column in warehouse_queries.py cannot crash the dashboard.
+    """
+    wdf = _wq("platform_effectiveness", mtime_of(DB_PATH))
+    if wdf is not None and not wdf.empty:
+        renamed = wdf.rename(columns={
+            "platform_name": "source_platform", "applications": "Applications",
+            "responses": "Progressed", "rejected": "Rejected",
+            "interviews": "Interviews",
+            "response_rate_pct": "Response %", "interview_rate_pct": "Interview %",
+        })
+        wanted = ["source_platform", "Applications", "Progressed", "Interviews",
+                  "Rejected", "Response %", "Interview %"]
+        keep = [c for c in wanted if c in renamed.columns]
+        out = renamed[keep].copy()
+        # A column the query does not provide must be present (as NA) so callers that
+        # reference it keep working instead of raising KeyError.
+        for col in wanted:
+            if col not in out.columns:
+                out[col] = pd.NA
+        return out[wanted].sort_values("Applications", ascending=False).reset_index(drop=True)
+
     df = valid.copy()
     df["_prog"] = df["current_status"].isin(["Assessment / OA", "Interview", "Offer", "Rejected"])
     g = df.groupby("source_platform").agg(
@@ -942,136 +705,42 @@ def platform_performance(valid: pd.DataFrame) -> pd.DataFrame:
         Progressed=("_prog", "sum"),
         Interviews=("current_status", lambda s: int(s.isin(["Interview", "Offer"]).sum())),
         Rejected=("current_status", lambda s: int((s == "Rejected").sum())),
-        AvgFit=("fit_score", "mean"),
     ).reset_index()
     g["Response %"] = (100 * g["Progressed"] / g["Applications"]).round(1)
     g["Interview %"] = (100 * g["Interviews"] / g["Applications"]).round(1)
-    g["AvgFit"] = g["AvgFit"].round(1)
     return g.sort_values("Applications", ascending=False)
 
 
 def company_summary(valid: pd.DataFrame, limit: int = 20) -> pd.DataFrame:
+    """Employer view from SQL, falling back to the pandas computation."""
+    wdf = _wq("company_pipeline", mtime_of(DB_PATH))
+    if wdf is not None and not wdf.empty:
+        out = wdf.rename(columns={
+            "applications": "Applications",
+            "last_applied": "LastUpdate",
+        })
+        wanted = ["company_name", "Applications", "LastUpdate"]
+        keep = [c for c in wanted if c in out.columns]
+        out = out[keep].copy()
+        for col in wanted:
+            if col not in out.columns:
+                out[col] = pd.NA
+        return out[wanted].head(limit).reset_index(drop=True)
+
     df = valid.sort_values("last_updated")
     latest_status = df.groupby("company_name")["current_status"].last()
     g = valid.groupby("company_name").agg(
         Applications=("thread_id", "count"),
-        AvgFit=("fit_score", "mean"),
         LastUpdate=("last_updated", "max"),
     ).reset_index()
     g["Latest Status"] = g["company_name"].map(latest_status)
-    g["AvgFit"] = g["AvgFit"].round(1)
     return g.sort_values(["Applications", "LastUpdate"], ascending=[False, False]).head(limit)
-
-
-def aggregate_missing_skills(valid: pd.DataFrame) -> pd.DataFrame:
-    """Demand-based gaps: signals in your applied roles AND the live market, not on your CV."""
-    cv_text = matcher.get_cv_text().lower()
-    pipe, market = Counter(), Counter()
-    for _, row in valid.iterrows():
-        text = f"{row['role_title'] or ''} {row['job_description_snippet'] or ''}"
-        for label, pattern, _ in matcher.DEMAND_COMPILED:
-            if pattern.search(text):
-                pipe[label] += 1
-    try:
-        for job in storage.load_discovered():
-            text = f"{job.get('title', '')} {job.get('description', '')}"
-            for label, pattern, _ in matcher.DEMAND_COMPILED:
-                if pattern.search(text):
-                    market[label] += 1
-    except Exception:
-        pass
-    gaps = Counter()
-    for label in set(pipe) | set(market):
-        if not re.search(matcher.owned_regex(label), cv_text, flags=re.IGNORECASE):
-            gaps[label] = pipe.get(label, 0) + market.get(label, 0)
-    if not gaps:
-        return pd.DataFrame(columns=["skill", "count"])
-    return pd.DataFrame(gaps.most_common(10), columns=["skill", "count"])
-
-
-def render_pillar_bars(breakdown: dict):
-    if not breakdown:
-        return
-    cap = breakdown.get("_cap")
-    cols = st.columns([1.1, 2])
-    labels = [k for k in breakdown if not k.startswith("_")]
-    for label in labels:
-        value = breakdown[label]
-        with st.container(horizontal=True, vertical_alignment="center"):
-            st.markdown(f"**{label}**")
-            st.progress(min(value / 100, 1.0), text=f"{value}%" if isinstance(value, (int, float)) else "—")
-    if isinstance(cap, (int, float)) and cap < 90:
-        st.caption(f"⚠️ Score capped at {cap:.0f}% — seniority/experience ask exceeds a fresh-grad profile.")
-
-
-# ------------------------------------------------------------------ sidebar
-
-def _lan_ip() -> str:
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]
-    except Exception:
-        try:
-            return socket.gethostbyname(socket.gethostname())
-        except Exception:
-            return "127.0.0.1"
-    finally:
-        s.close()
-
-
-def render_ipad_section():
-    with st.expander("📱 Open on iPad / Phone", expanded=False):
-        url = f"http://{_lan_ip()}:8501"
-        st.markdown(f"On the same Wi-Fi, open Safari on your iPad and go to:  \n### `{url}`")
-        try:
-            import qrcode
-            qr = qrcode.QRCode(box_size=5, border=2)
-            qr.add_data(url)
-            qr.make(fit=True)
-            img = qr.make_image(fill_color="#0e1117", back_color="white")
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            st.image(buf.getvalue(), width=180)
-        except Exception:
-            st.caption("Tip: `pip install qrcode[pil]` shows a scannable QR code here.")
-        st.caption("Away from home? Run `cloudflared tunnel --url http://localhost:8501` "
-                   "(free, no signup) and open the printed https URL from anywhere.")
-        st.caption("⚠️ **Security:** this dashboard has no login by default and exposes your "
-                   "application data. Before using a public tunnel, set an environment variable "
-                   "`DASH_PASSWORD=your-passphrase` and restart Streamlit — the app will then "
-                   "require it before rendering anything.")
-
-
-def render_cv_editor():
-    with st.expander("🧬 CV Profile (Fit Analyzer)", expanded=False):
-        if "cv_text" not in st.session_state:
-            st.session_state["cv_text"] = matcher.get_cv_text()
-        upload = st.file_uploader("Upload CV (.txt / .md)", type=["txt", "md"], key="cv_upload")
-        if upload is not None and upload.getvalue():
-            st.session_state["cv_text"] = upload.getvalue().decode("utf-8", errors="replace")
-            st.toast(f"Loaded CV: {upload.name}")
-        cv_text = st.text_area("Editable CV / resume text", value=st.session_state["cv_text"],
-                               height=220, key="cv_area")
-        st.session_state["cv_text"] = cv_text
-        c1, c2 = st.columns(2)
-        if c1.button("💾 Save CV Profile", width="stretch"):
-            matcher.save_cv_text(cv_text)
-            st.toast("CV saved — click 🧬 Re-score all (Maintenance) to refresh fit scores; "
-                     "AI scores recompute automatically because the CV signature changed")
-        if c2.button("↩ Reset to curated default", width="stretch"):
-            st.session_state["cv_text"] = matcher.DEFAULT_CV_TEXT
-            st.rerun()
-        st.caption("The curated CV drives the 5-pillar fit score: skills 40% · title 20% · "
-                   "qualifications 15% · seniority 15% · location 10%.")
 
 
 def run_sync(force_full: bool, zone=None):
     st.session_state["sync_running"] = True
     st.toast("⏳ Sync started — watch the progress below the header…", icon="⏳")
     summary = {}
-    use_ai_fit = ai_want() and bool(st.session_state.get("ai_fit_ai", True))
-    use_ai_classify = ai_want() and bool(st.session_state.get("ai_classify_ai", True))
     with (zone.container() if zone is not None else st.container()):
         with st.status("▶ Syncing Gmail...", expanded=True) as status:
             bar = st.progress(0.0, text=STAGE_LABELS["gmail"])
@@ -1081,9 +750,7 @@ def run_sync(force_full: bool, zone=None):
                     bar.progress(STAGE_PROGRESS.get(stage, 0), text=STAGE_LABELS.get(stage, stage))
                     log.markdown(f"`{datetime.now():%H:%M:%S}` {message}")
 
-                summary = sync_engine.run(force_full=force_full, notify=notify,
-                                          use_ai_fit=use_ai_fit,
-                                          use_ai_classify=use_ai_classify)
+                summary = sync_engine.run(force_full=force_full, notify=notify)
                 bar.progress(1.0, text="Step 6/6 — Done.")
                 status.update(label="✅ Gmail sync complete", state="complete", expanded=False)
                 st.session_state["last_sync_summary"] = summary
@@ -1101,63 +768,14 @@ def run_sync(force_full: bool, zone=None):
     if summary:
         if summary.get("found", 0) == 0 and not force_full:
             st.toast("No new emails since your last sync — tick **Force Full Re-sync** to "
-                     "re-process the whole 2026 mailbox with AI classification & fit", icon="ℹ️")
+                     "re-process the whole mailbox", icon="ℹ️")
         else:
             st.toast(f"Synced in {summary['elapsed']:.1f}s — {summary['inserted']} new, "
-                     f"{summary['updated']} updated, {summary['garbage']} noise, "
-                     f"{summary.get('ai_classified', 0)} AI-classified", icon="✅")
+                     f"{summary['updated']} updated, {summary['garbage']} noise", icon="✅")
         if summary.get("csv_error"):
             st.warning(f"Sync succeeded, but the CSV export was skipped "
                        f"({summary['csv_error']}). The database is safe — close "
                        f"job_tracker.csv if it is open and re-run the sync.")
-    st.rerun()
-
-
-def run_market_scan():
-    st.session_state["scan_running"] = True
-    try:
-        with st.status("🌐 Scanning live Malaysian job market...", expanded=True) as status:
-            log = st.empty()
-
-            def notify(stage, message):
-                log.markdown(f"`{datetime.now():%H:%M:%S}` {message}")
-
-            result = sync_engine.scan_market(notify=notify)
-            status.update(label=f"✅ Found {len(result['jobs'])} live roles "
-                                f"({result['elapsed']:.1f}s)", state="complete", expanded=False)
-            for name, count in result["source_counts"].items():
-                emoji = "🟢" if count else "⚪"
-                st.caption(f"{emoji} {name}: {count} listings")
-    except Exception as exc:
-        st.error(f"Market scan failed: {type(exc).__name__}: {exc}")
-    finally:
-        st.session_state["scan_running"] = False
-    st.cache_data.clear()
-    st.rerun()
-
-
-def run_rescore():
-    """Re-run fit scores for every application (AI when enabled) + market roles (rules).
-    AI scores use a CV-signature cache key, so editing the CV refreshes them."""
-    use_ai_fit = ai_want() and bool(st.session_state.get("ai_fit_ai", True))
-    with st.status("🧬 Re-scoring applications + market roles against your CV...",
-                   expanded=True) as status:
-        try:
-            scored = sync_engine.run_fit_evaluation(notify=None, use_ai_fit=use_ai_fit)
-            disc_results = {}
-            try:
-                for job in storage.load_discovered():
-                    disc_results[job["job_key"]] = matcher.analyze(
-                        job.get("title", "") or "", job.get("description") or "")
-                storage.save_discovered_fits(disc_results)
-            except Exception:
-                pass
-            status.update(label=f"✅ Re-scored {scored['scored']} application(s) + "
-                                f"{len(disc_results)} market role(s)", state="complete")
-            st.toast("Fit scores refreshed — the CV Gap Report & charts now use your latest CV")
-        except Exception as exc:
-            status.update(label=f"❌ Re-score failed: {exc}", state="error", expanded=True)
-    st.cache_data.clear()
     st.rerun()
 
 
@@ -1178,16 +796,6 @@ def persist_ghosting():
 
 
 # ------------------------------------------------------------------ shared renders
-
-def fit_chip(score) -> str:
-    if score is None or (isinstance(score, float) and pd.isna(score)):
-        return "<span class='fit-chip fit-amber'>—</span>"
-    if score >= 75:
-        return f"<span class='fit-chip fit-green'>{score:.0f}% Fit</span>"
-    if score >= 50:
-        return f"<span class='fit-chip fit-amber'>{score:.0f}% Fit</span>"
-    return f"<span class='fit-chip fit-red'>{score:.0f}% Fit</span>"
-
 
 def safe_post_link(url) -> tuple:
     """Return (usable_url, was_broken). Broken = email click-tracking/logo link that would
@@ -1211,48 +819,302 @@ def safe_post_link(url) -> tuple:
     return clean, False
 
 
-def render_gap_analysis(title: str, description: str, fallback_matched=None,
-                        fallback_missing=None, fallback_tips=None):
-    """Live CV gap analysis recomputed against the current CV profile."""
-    try:
-        analysis = matcher.analyze(title, description)
-    except Exception:
-        analysis = None
-    matched = (analysis or {}).get("matched_skills") or (fallback_matched or [])
-    missing = (analysis or {}).get("missing_skills") or (fallback_missing or [])
-    tips = (analysis or {}).get("actionable_improvements") or (fallback_tips or [])
-    score = (analysis or {}).get("fit_score")
+# ------------------------------------------------------------------ reports
+def render_reports(stale_count: int = 0):
+    """The reporting section: what the data says, not how it is computed.
 
-    if score is not None:
-        st.markdown(fit_chip(score), unsafe_allow_html=True)
-    if matched:
-        st.markdown("**✅ Matched:** " + " ".join(
-            f"<span class='fit-chip fit-green'>{esc(m)}</span>" for m in matched),
-            unsafe_allow_html=True)
+    Every figure comes from the SQL warehouse (`warehouse_queries.py`), so these reports
+    and the tracker KPIs can never disagree. Tabs use `on_change="rerun"` so only the tab
+    you are looking at does any work.
+    """
+    st.subheader("📊 Reports")
+    st.caption("Deeper cuts of your pipeline than the headline KPIs. All figures are computed "
+               "in SQL from the same warehouse that feeds the export and the BI model.")
+
+    tabs = st.tabs(["🔻 Funnel & pace", "🏆 Where it works",
+                    "⏳ Waiting & follow-up", "⬇️ Export & model"], on_change="rerun")
+    open_index = next((i for i, t in enumerate(tabs) if t.open), 0)
+
+    if open_index == 0:
+        with tabs[0]:
+            _report_funnel_and_pace()
+    elif open_index == 1:
+        with tabs[1]:
+            _report_where_it_works()
+    elif open_index == 2:
+        with tabs[2]:
+            _report_waiting()
     else:
-        st.markdown("**✅ Matched:** _none detected_")
-    if missing:
-        st.markdown("**❌ Missing:** " + " ".join(
-            f"<span class='fit-chip fit-red'>{esc(m)}</span>" for m in missing),
-            unsafe_allow_html=True)
-    if tips:
-        st.markdown("**💡 How to improve your odds**")
-        for tip in tips[:3]:
-            st.markdown(f"- {tip}")
-    if analysis and analysis.get("breakdown"):
-        st.markdown("**📊 Score breakdown** (skills · title · quals · seniority · location)")
-        render_pillar_bars(analysis["breakdown"])
-    return analysis
+        with tabs[3]:
+            _report_export()
 
 
-# ------------------------------------------------------------------ tab 1
+def _report_funnel_and_pace():
+    """Where applications die, and whether the pace is up or down."""
+    funnel = _wq("funnel_conversion", mtime_of(DB_PATH))
+    if funnel.empty:
+        st.info("No applications yet — sync Gmail first.")
+        return
+
+    applied = int(funnel["applications"].iloc[0]) if len(funnel) else 0
+    left, right = st.columns([1, 1.2])
+    with left:
+        st.markdown("**Where applications stop**")
+        fig = px.funnel(funnel, x="applications", y="stage",
+                        color_discrete_sequence=["#4F8CFF"])
+        fig.update_traces(textinfo="value+percent initial")
+        style_fig(fig, 340)
+        st.plotly_chart(fig, width="stretch")
+    with right:
+        st.markdown("**Stage by stage**")
+        show = funnel.rename(columns={
+            "stage": "Stage", "applications": "Reached",
+            "step_conversion_pct": "From previous %", "dropped_at_stage": "Lost here"})
+        st.dataframe(show[["Stage", "Reached", "From previous %", "Lost here"]],
+                     width="stretch", hide_index=True)
+        screening = funnel[funnel["stage"] == "Assessment / OA"]
+        if not screening.empty and applied:
+            advanced = int(screening["applications"].iloc[0])
+            st.caption(f"**{applied - advanced} of {applied}** applications never got past "
+                       f"screening ({100 * advanced / applied:.0f}% advanced).")
+
+    st.divider()
+    st.markdown("**Pace — applications per month**")
+    vel = _wq("monthly_velocity_running", mtime_of(DB_PATH))
+    if vel.empty:
+        st.caption("Not enough history yet.")
+        return
+    a, b = st.columns([1.4, 1.1])
+    with a:
+        fig = px.bar(vel, x="year_month", y="applications", text="applications",
+                     labels={"year_month": "", "applications": "Applications"})
+        fig.update_traces(marker_color="#4F8CFF", textposition="outside")
+        style_fig(fig, 300)
+        st.plotly_chart(fig, width="stretch")
+    with b:
+        st.markdown("**Running total**")
+        st.dataframe(vel[["year_month", "applications", "responses", "running_total",
+                          "mom_change"]].rename(columns={
+            "year_month": "Month", "applications": "Applied", "responses": "Responses",
+            "running_total": "Total to date", "mom_change": "vs prev"}),
+            width="stretch", hide_index=True)
+    last = vel.iloc[-1]
+    if pd.notna(last.get("mom_change")):
+        direction = "up" if last["mom_change"] > 0 else "down"
+        st.caption(f"**{int(last['applications'])}** applications in {last['year_month']} — "
+                   f"{direction} {abs(int(last['mom_change']))} on the month before. "
+                   f"Three-month average: **{float(last.get('rolling_3m_avg') or 0):.0f}**/month.")
+
+
+def _report_where_it_works():
+    """Platform and employer effectiveness — where the responses actually come from."""
+    perf = _wq("platform_effectiveness", mtime_of(DB_PATH))
+    if perf.empty:
+        st.info("No applications yet — sync Gmail first.")
+        return
+
+    st.markdown("**Which platform produces responses**")
+    st.caption("Ranked by response rate. Sample sizes are small — treat gaps of a few points "
+               "as noise, not as evidence.")
+    p = perf.sort_values("response_rate_pct", ascending=True)
+    fig = px.bar(p, x="response_rate_pct", y="platform_name", orientation="h",
+                 text="response_rate_pct",
+                 labels={"response_rate_pct": "Response rate %", "platform_name": ""},
+                 color="response_rate_pct",
+                 color_continuous_scale=["#EF553B", "#FFA15A", "#00CC96"])
+    fig.update_traces(texttemplate="%{text:.0f}%")
+    fig.update_layout(coloraxis_showscale=False)
+    style_fig(fig, 300)
+    st.plotly_chart(fig, width="stretch")
+
+    st.dataframe(
+        perf.rename(columns={
+            "platform_name": "Platform", "applications": "Applied", "responses": "Responses",
+            "interviews": "Interviews", "offers": "Offers", "ghosted": "Ghosted",
+            "response_rate_pct": "Response %", "interview_rate_pct": "Interview %",
+            "avg_days_to_response": "Avg days to reply",
+            "share_of_applications_pct": "Share of applications"}),
+        width="stretch", hide_index=True,
+        column_config={
+            "Response %": st.column_config.ProgressColumn(min_value=0, max_value=100,
+                                                          format="%.1f%%"),
+        })
+
+    ranked = perf.sort_values("response_rate_pct", ascending=False)
+    best, worst = ranked.iloc[0], ranked.iloc[-1]
+    if int(best["applications"]) >= 5 and int(worst["applications"]) >= 5:
+        st.caption(f"**{best['platform_name']}** returns "
+                   f"{float(best['response_rate_pct'] or 0):.0f}% versus "
+                   f"**{worst['platform_name']}** at "
+                   f"{float(worst['response_rate_pct'] or 0):.0f}% — worth shifting effort if "
+                   f"the gap holds up.")
+
+    st.divider()
+    st.markdown("**Employers you keep coming back to**")
+    comp = _wq("company_pipeline", mtime_of(DB_PATH))
+    if not comp.empty:
+        repeats = comp[comp["applications"] > 1].sort_values("applications", ascending=False)
+        if repeats.empty:
+            st.caption("No employer has more than one application yet.")
+        else:
+            st.caption("More applications at the same firm is not automatically better odds — "
+                       "pick the strongest fit and chase a referral for that one.")
+            st.dataframe(
+                repeats.rename(columns={
+                    "company_name": "Employer", "applications": "Applied",
+                    "distinct_roles": "Roles", "responses": "Responses",
+                    "interviews": "Interviews", "still_open": "Still open",
+                    "response_rate_pct": "Response %",
+                    "last_applied": "Last applied"}),
+                width="stretch", hide_index=True,
+                column_config={
+                    "Response %": st.column_config.ProgressColumn(min_value=0, max_value=100,
+                                                                  format="%.1f%%"),
+                })
+
+
+def _report_waiting():
+    """Everything still silent, ordered by how long you have been waiting."""
+    cohort = _wq("silence_cohort", mtime_of(DB_PATH))
+    if cohort.empty:
+        st.success("Nothing is waiting — every application has had a response.")
+        return
+
+    waiting = int(cohort["applications"].sum())
+    oldest = cohort.iloc[-1]
+    c1, c2 = st.columns(2)
+    c1.metric("Still waiting", waiting)
+    c2.metric("Longest bucket", str(oldest["waiting_bucket"]).split(". ")[-1],
+              help="You can chase anything quiet for 5+ days.")
+
+    st.markdown("**How long you have been waiting**")
+    fig = px.bar(cohort, x="waiting_bucket", y="applications", text="applications",
+                 labels={"waiting_bucket": "", "applications": "Applications"})
+    fig.update_traces(marker_color=["#00CC96", "#4F8CFF", "#FFA15A", "#EF553B", "#B0BEC5"],
+                      textposition="outside")
+    style_fig(fig, 300)
+    st.plotly_chart(fig, width="stretch")
+
+    st.dataframe(
+        cohort.rename(columns={
+            "waiting_bucket": "Waiting", "applications": "Applications",
+            "avg_days_waiting": "Avg days"}),
+        width="stretch", hide_index=True)
+    st.caption("Use the **📬 Follow-up queue** on the tracker page to draft and send the "
+               "nudges for these.")
+
+    st.divider()
+    st.markdown("**How your applications actually moved**")
+    trans = _wq("status_transition_matrix", mtime_of(DB_PATH))
+    if not trans.empty:
+        st.dataframe(
+            trans.rename(columns={
+                "from_status": "From", "to_status": "To", "transitions": "Times",
+                "pct_of_from_status": "% of that status",
+                "avg_days_from_application": "Avg days from applying"}),
+            width="stretch", hide_index=True)
+        st.caption("The audit trail behind the funnel — how applications moved, not just "
+                   "where they ended up.")
+
+    recent = _wq("recent_activity", mtime_of(DB_PATH))
+    if not recent.empty:
+        with st.expander(f"📜 Last {min(len(recent), 30)} status changes", expanded=False):
+            st.dataframe(
+                recent.head(30)[["changed_at", "company_name", "role_title",
+                                 "from_status", "to_status", "event_type"]].rename(columns={
+                    "changed_at": "When", "company_name": "Employer", "role_title": "Role",
+                    "from_status": "From", "to_status": "To", "event_type": "Type"}),
+                width="stretch", hide_index=True)
+
+
+def _report_export():
+    """The single usable export, plus the model facts behind it."""
+    try:
+        import bi_export
+
+        df = bi_export.unified_csv()
+    except Exception as exc:
+        st.error(f"Could not build the export: {type(exc).__name__}: {exc}")
+        return
+
+    if df is None or df.empty:
+        st.info("Nothing to export yet — sync Gmail first.")
+        return
+
+    st.markdown("**Your data as one file**")
+    st.caption("Every application, every useful column, one row each. Open it in Excel and "
+               "everything is there — this is the file to use.")
+    st.download_button(
+        f"⬇️ Download job_applications.csv ({len(df)} rows)",
+        data=df.to_csv(index=False).encode("utf-8-sig"),
+        file_name=f"job_applications_{datetime.now():%Y%m%d}.csv",
+        mime="text/csv", type="primary", key="dl_unified")
+
+    q = _wq("data_quality_audit", mtime_of(DB_PATH))
+    if not q.empty:
+        row = q.iloc[0]
+        c1, c2 = st.columns(2)
+        c1.metric("Applications", int(row.get("rows", 0) or 0))
+        c2.metric("Missing JD text", int(row.get("missing_jd", 0) or 0),
+                  help="Use Scrape missing JDs on the tracker to fill these in.")
+
+    with st.expander("The model behind these reports", expanded=False,
+                     icon=":material/database:"):
+        st.caption("The warehouse the reports read from. Useful if you want to import the data "
+                   "into Power BI or Tableau — otherwise ignore this.")
+        try:
+            import warehouse
+
+            counts = warehouse.build_warehouse()
+            st.markdown(
+                f"- **Fact table** — one row per application: "
+                f"{counts.get('applications', 0)} rows\n"
+                f"- **Dimensions** — {counts.get('companies', 0)} employers · "
+                f"{counts.get('role_families', 0)} role families · "
+                f"{counts.get('seniorities', 0)} seniority tiers · "
+                f"{counts.get('industries', 0)} industries · "
+                f"{counts.get('platforms', 0)} platforms\n"
+                f"- **Status events** — {counts.get('events', 0)} transitions tracked")
+        except Exception as exc:
+            st.caption(f"Model unavailable ({type(exc).__name__})")
+
+        try:
+            import bi_export
+
+            spec = bi_export.model_spec()
+            st.markdown(f"- **Grain**: {spec['grain']['fact_application']}")
+            with st.expander("Full model specification + stated limitations", expanded=False):
+                st.json(spec)
+        except Exception:
+            pass
+
+        st.caption("The SQL, the DAX measures and the Tableau calculated fields live in "
+                   "`warehouse_queries.py` and `bi_export.py` — everything above is their "
+                   "output, not a demo.")
+
+    with st.expander("Per-report CSVs (for a Power BI / Tableau / Excel model)",
+                     expanded=False, icon=":material/table_chart:"):
+        st.caption("Only needed if you are building the BI model. Ignore otherwise.")
+        if st.button("Write the per-report CSVs", key="gen_excel"):
+            with st.spinner("Writing report CSVs..."):
+                try:
+                    import bi_export
+
+                    st.session_state["excel_files"] = bi_export.export_excel()
+                except Exception as exc:
+                    st.error(f"Export failed: {type(exc).__name__}: {exc}")
+        files = st.session_state.get("excel_files")
+        if files:
+            st.success(f"{len(files)} file(s) written to `bi_pack/excel/`")
+            for name, path in files.items():
+                st.markdown(f"- `{name}` → `{path}`")
+
+# ------------------------------------------------------------------ applications
 
 def render_applications_tab(valid: pd.DataFrame, view: pd.DataFrame, stale_count: int = 0):
     total_valid = len(valid)
     interviews = int(valid["current_status"].isin(["Interview", "Offer"]).sum())
     rejected = int((valid["current_status"] == "Rejected").sum())
-    scored = valid["fit_score"].dropna()
-    avg_fit = float(scored.mean()) if len(scored) else None
 
     interview_rate = (interviews / total_valid * 100) if total_valid else 0.0
     rejection_rate = (rejected / total_valid * 100) if total_valid else 0.0
@@ -1260,207 +1122,148 @@ def render_applications_tab(valid: pd.DataFrame, view: pd.DataFrame, stale_count
     progressed = valid[valid["current_status"].isin(["Assessment / OA", "Interview", "Offer", "Rejected"])]
     response_rate = (len(progressed) / total_valid * 100) if total_valid else 0.0
     active = int(valid["current_status"].isin(["Applied", "Assessment / OA"]).sum())
+    waiting_now = int((valid["current_status"] == "Applied").sum())
+
+    # How the response rate reads against the published benchmark bands.
+    if response_rate >= 5.0:
+        response_band = "Strong (5%+)"
+    elif response_rate >= 3.0:
+        response_band = "Good (3-5%)"
+    elif response_rate >= 2.0:
+        response_band = "Average (2-3%)"
+    else:
+        response_band = "Below average (<2%)"
+
     cutoff_30 = pd.Timestamp.today().normalize() - pd.Timedelta(days=30)
     recent_30 = int((valid["application_date"] >= cutoff_30).sum())
     prev_30 = int(((valid["application_date"] >= cutoff_30 - pd.Timedelta(days=30))
                    & (valid["application_date"] < cutoff_30)).sum())
     delta_30 = (recent_30 - prev_30) if (recent_30 or prev_30) else None
-    resp_days = progressed.dropna(subset=["application_date", "last_updated"]).copy()
+
+    # Median reply time comes from the warehouse, which only counts responses with a
+    # KNOWN date. Computing it here from `last_updated` counted every still-silent
+    # application as a zero-day reply and dragged the median to 0.
     med_days = None
-    if len(resp_days):
-        d = (resp_days["last_updated"] - resp_days["application_date"]).dt.days
-        d = d[(d >= 0) & (d < 120)]
-        med_days = float(d.median()) if len(d) else None
+    try:
+        _kpi = _wq("headline_kpis", mtime_of(DB_PATH))
+        if not _kpi.empty:
+            value = _kpi.iloc[0].get("avg_days_to_response")
+            med_days = float(value) if pd.notna(value) else None
+    except Exception:
+        med_days = None
 
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("✅ Total Valid Applications", total_valid, help="Noise-filtered application emails")
-    k2.metric("🎤 Interview Rate", f"{interview_rate:.1f}%", help="(Interviews + Offers) / Valid")
-    k3.metric("❌ Rejection Rate", f"{rejection_rate:.1f}%", help="Rejected / Total Valid")
-    k4.metric("👻 Auto-Ghosted", stale_count, delta_color="inverse",
-              help=f"Applied > {stale_days()} days with no update")
-    k5.metric("🧬 Avg CV Fit Score", f"{avg_fit:.0f}%" if avg_fit is not None else "—",
-              help="Average 5-pillar fit across scored applications")
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Applications", total_valid, help="Noise-filtered application emails")
+    k2.metric("Response rate", f"{response_rate:.1f}%",
+              delta=response_band, delta_color="off",
+              help="Any employer reply that is not a form rejection. Published benchmarks: "
+                   "2–3% average, 3–5% good, 5%+ strong.")
+    k3.metric("Interview rate", f"{interview_rate:.1f}%",
+              help="Reached interview or offer. Benchmark: 5–10% for well-targeted "
+                   "applications; 6.87% when applying on a company's own careers page.")
+    k4.metric("Still active", active, help="Applied or Assessment/OA — the pipeline is alive")
 
-    k6, k7, k8, k9 = st.columns(4)
-    k6.metric("🚀 Active Pipelines", active, help="Applied + Assessment/OA (still alive)")
-    k7.metric("📬 Response Rate", f"{response_rate:.0f}%", help="Any employer response / valid")
-    k8.metric("⏱️ Median Response", f"{med_days:.0f}d" if med_days is not None else "—",
-              help="Application date → last employer update")
-    k9.metric("🆕 Last 30 Days", recent_30,
-              delta=(f"{delta_30:+d} vs prev" if delta_30 is not None else None),
+    k5, k6, k7, k8 = st.columns(4)
+    k5.metric("Waiting on a reply", waiting_now, delta_color="off",
+              help="Applied with no response yet — see the action queue below.")
+    k6.metric("Median reply time", f"{med_days:.0f} days" if med_days is not None else "—",
+              help="Application date to the first employer response, where the date is known.")
+    k7.metric("Applied in last 30 days", recent_30,
+              delta=(f"{delta_30:+d} vs previous 30" if delta_30 is not None else None),
               delta_color="normal" if (delta_30 or 0) >= 0 else "inverse",
-              help=f"Applications submitted in the last 30 days (previous 30: {prev_30})")
+              help=f"Previous 30 days: {prev_30}")
+    k8.metric("Rejection rate", f"{rejection_rate:.0f}%", help="Rejected / total applications")
 
-    st.divider()
+    st.space("small")
 
-    with st.expander("🧠 Insights & Recommendations", expanded=False):
-        if ai_want():
-            if st.button("🤖 Generate AI insights", key="gen_insights_btn", width="stretch",
-                         help="AI analysis of your pipeline — one free API call, cached after "
-                              "the first time."):
-                st.session_state["gen_insights"] = True
-                st.rerun()
-        ai_txt = ai_insights(valid, stale_count) if st.session_state.get("gen_insights") else None
-        if ai_txt:
-            st.caption(f"🤖 Generated by {ai.provider_label()} · numbers computed from your data")
-            st.markdown(ai_txt)
-        else:
-            tips = generate_insights(valid, stale_count)[:6]
-            if tips:
-                for tip in tips:
-                    st.markdown(f"- {tip}")
-            if st.session_state.get("gen_insights"):
-                err = ai.last_error()
-                st.caption("AI didn't return usable content — showing deterministic insights."
-                           + (f"  ({err})" if err else "  (no error recorded — the response "
-                             "may have been too short to show)"))
-            elif ai_want():
-                st.caption("Click **Generate AI insights** above for an AI analysis (free).")
+    with st.expander("Insights & recommendations", expanded=False, icon=":material/lightbulb:"):
+        tips = generate_insights(valid, stale_count)[:6]
+        if tips:
+            for tip in tips:
+                st.markdown(f"- {tip}")
 
     render_followup_queue(valid)
     render_activity_feed()
 
-    st.subheader("Pipeline & Fit")
+    st.subheader("Pipeline")
     funnel_counts = [
         total_valid,
         int(valid["current_status"].isin(FUNNEL_STAGES[1:]).sum()),
         int(valid["current_status"].isin(FUNNEL_STAGES[2:]).sum()),
         int((valid["current_status"] == "Offer").sum()),
     ]
-    left, right = st.columns([1, 1.2])
-    with left:
-        st.markdown("**Pipeline Funnel** — click a stage to dig into it")
-        if total_valid:
-            fig = px.funnel(x=funnel_counts, y=FUNNEL_STAGES,
-                            labels={"x": "Applications", "y": ""},
-                            color_discrete_sequence=["#4F8CFF"])
-            fig.update_traces(textinfo="value+percent initial",
-                              marker={"line": {"width": 2, "color": "#16181d"}},
-                              customdata=FUNNEL_STAGES)
-            style_fig(fig, 360)
-            ev = st.plotly_chart(fig, width="stretch", on_select="rerun",
-                                 selection_mode="points", key="funnel_chart")
-            cum_oa, cum_int, cum_off = funnel_counts[1], funnel_counts[2], funnel_counts[3]
-            conv = []
-            if funnel_counts[0] and cum_oa:
-                conv.append(f"Applied → Assessment: **{100 * cum_oa / funnel_counts[0]:.0f}%**")
-            if cum_oa and cum_int:
-                conv.append(f"Assessment → Interview: **{100 * cum_int / cum_oa:.0f}%**")
-            if cum_int and cum_off:
-                conv.append(f"Interview → Offer: **{100 * cum_off / cum_int:.0f}%**")
-            if conv:
-                st.caption("Conversion: " + " · ".join(conv))
-            stage = consume_selection("funnel_chart", ev, labels=FUNNEL_STAGES)
-            if stage is not None:
-                k = FUNNEL_STAGES.index(stage) if stage in FUNNEL_STAGES else 0
-                stage_rows = valid[valid["current_status"].isin(FUNNEL_STAGES[k:])] if k else valid
-                if not stage_rows.empty:
-                    inline_insights(f"Pipeline stage: {stage} and beyond", stage_rows)
-        else:
-            st.info("No valid applications yet.")
-    with right:
-        st.markdown("**CV Fit Score Distribution**")
-        scored_df = valid.dropna(subset=["fit_score"])
-        if not scored_df.empty:
-            fig = px.histogram(scored_df, x="fit_score", nbins=18,
-                               color_discrete_sequence=["#4F8CFF"],
-                               labels={"fit_score": "Fit Score %", "count": "Applications"})
-            fig.update_traces(marker_line_color="#16181d", marker_line_width=1.5)
-            style_fig(fig, 360)
-            fig.add_vline(x=75, line_dash="dash", line_color="#00CC96",
-                          annotation_text="apply threshold", annotation_font_color="#00CC96")
-            avg = float(scored_df["fit_score"].mean())
-            fig.add_vline(x=avg, line_dash="dot", line_color="#9db9ff",
-                          annotation_text=f"your avg {avg:.0f}%", annotation_font_color="#9db9ff")
-            ev = st.plotly_chart(fig, width="stretch", on_select="rerun",
-                                 selection_mode="points", key="fit_hist")
-            xval = consume_selection("fit_hist", ev)
-            if xval is not None:
-                try:
-                    lo, hi = float(xval) - 5, float(xval) + 5
-                except (TypeError, ValueError):
-                    lo, hi = None, None
-                if lo is not None:
-                    band_rows = scored_df[(scored_df["fit_score"] >= lo) & (scored_df["fit_score"] <= hi)]
-                    if not band_rows.empty:
-                        inline_insights(f"Fit band {lo:.0f}-{hi:.0f}%", band_rows)
+    st.markdown("**Pipeline Funnel** — click a stage to dig into it")
+    if total_valid:
+        fig = px.funnel(x=funnel_counts, y=FUNNEL_STAGES,
+                        labels={"x": "Applications", "y": ""},
+                        color_discrete_sequence=["#4F8CFF"])
+        fig.update_traces(textinfo="value+percent initial",
+                          marker={"line": {"width": 2, "color": "#16181d"}},
+                          customdata=FUNNEL_STAGES)
+        style_fig(fig, 360)
+        ev = st.plotly_chart(fig, width="stretch", on_select="rerun",
+                             selection_mode="points", key="funnel_chart")
+        cum_oa, cum_int, cum_off = funnel_counts[1], funnel_counts[2], funnel_counts[3]
+        conv = []
+        if funnel_counts[0] and cum_oa:
+            conv.append(f"Applied → Assessment: **{100 * cum_oa / funnel_counts[0]:.0f}%**")
+        if cum_oa and cum_int:
+            conv.append(f"Assessment → Interview: **{100 * cum_int / cum_oa:.0f}%**")
+        if cum_int and cum_off:
+            conv.append(f"Interview → Offer: **{100 * cum_off / cum_int:.0f}%**")
+        if conv:
+            st.caption("Conversion: " + " · ".join(conv))
+        stage = consume_selection("funnel_chart", ev, labels=FUNNEL_STAGES)
+        if stage is not None:
+            k = FUNNEL_STAGES.index(stage) if stage in FUNNEL_STAGES else 0
+            stage_rows = valid[valid["current_status"].isin(FUNNEL_STAGES[k:])] if k else valid
+            if not stage_rows.empty:
+                inline_insights(f"Pipeline stage: {stage} and beyond", stage_rows)
+    else:
+        st.info("No valid applications yet.")
 
-    left, right = st.columns([1.2, 1])
-    with left:
-        st.markdown("**Application Velocity** (color = status)")
-        if view.empty:
-            st.info("No applications match the current filters.")
+    st.markdown("**Application Velocity** (color = status)")
+    if view.empty:
+        st.info("No applications match the current filters.")
+    else:
+        granularity = st.radio("Group by", ["Week", "Month"], horizontal=True, key="gran")
+        fmt = "%Y-%m-%d"
+        if granularity == "Week":
+            bucket = view["application_date"].dt.to_period("W-SUN").dt.start_time.dt.strftime(fmt)
+            xlabel = "Week starting"
         else:
-            granularity = st.radio("Group by", ["Week", "Month"], horizontal=True, key="gran")
-            fmt = "%Y-%m-%d"
-            if granularity == "Week":
-                bucket = view["application_date"].dt.to_period("W-SUN").dt.start_time.dt.strftime(fmt)
-                xlabel = "Week starting"
-            else:
-                bucket = view["application_date"].dt.to_period("M").dt.start_time.dt.strftime(fmt)
-                xlabel = "Month"
-            velocity = (view.assign(_bucket=bucket)
-                        .groupby(["_bucket", "current_status"]).size().reset_index(name="count"))
-            # Force a stable stack order (Applied → … → Ghosted) in every bucket, so the
-            # same colour sits in the same place across the whole chart.
-            _rank = {status: i for i, status in enumerate(STATUS_ORDER)}
-            velocity["_rank"] = velocity["current_status"].map(_rank).fillna(len(_rank))
-            velocity = velocity.sort_values(["_bucket", "_rank"])
-            totals = velocity.groupby("_bucket")["count"].sum()
-            fig = px.bar(velocity, x="_bucket", y="count", color="current_status",
-                         custom_data=["_bucket"],
-                         color_discrete_map=STATUS_COLORS,
-                         category_orders={
-                             "_bucket": sorted(velocity["_bucket"].unique()),
-                             "current_status": list(STATUS_ORDER),
-                         },
-                         labels={"_bucket": xlabel, "count": "Applications", "current_status": "Status"})
-            fig.update_layout(barmode="stack", legend_traceorder="normal")
-            style_fig(fig, 360)
-            _lift = max(totals.max() * 0.04, 0.4)
-            for x, total in totals.items():
-                fig.add_annotation(x=x, y=total + _lift, text=f"<b>{total}</b>",
-                                   showarrow=False, font=dict(color="#9db9ff", size=12))
-            fig.update_yaxes(range=[0, totals.max() + _lift * 4])
-            ev = st.plotly_chart(fig, width="stretch", on_select="rerun",
-                                 selection_mode="points", key="velocity_chart")
-            bucket_id = consume_selection("velocity_chart", ev)
-            if bucket_id is not None:
-                bucket_rows = view[view["application_date"].dt.strftime(fmt) == str(bucket_id)]
-                if not bucket_rows.empty:
-                    inline_insights(f"Week starting {bucket_id}", bucket_rows)
-    with right:
-        st.markdown("**Fit vs Time** — hover for a preview, click a dot for the full JD & fit breakdown")
-        splot = valid.dropna(subset=["fit_score", "application_date", "thread_id"])
-        if not splot.empty:
-            fig = px.scatter(splot, x="application_date", y="fit_score",
-                             color="current_status", color_discrete_map=STATUS_COLORS,
-                             custom_data=["thread_id"],
-                             hover_data={"company_name": True, "fit_score": ":.0f",
-                                         "application_date": "|%d %b %Y", "current_status": False,
-                                         "role_title": False, "thread_id": False},
-                             labels={"application_date": "Applied on", "fit_score": "Fit Score %"})
-            fig.update_traces(marker=dict(size=9, line=dict(width=1, color="#16181d")), opacity=0.85)
-            style_fig(fig, 360)
-            best = splot.loc[splot["fit_score"].idxmax()]
-            fig.add_annotation(
-                x=best["application_date"], y=best["fit_score"],
-                text=f"🏆 best fit: {best['company_name'][:16]} · {best['fit_score']:.0f}%",
-                showarrow=True, arrowhead=2, arrowcolor="#9db9ff",
-                font=dict(color="#9db9ff", size=11), bgcolor="rgba(26,29,36,.85)",
-                bordercolor="#313947", borderwidth=1, borderpad=3)
-            event = st.plotly_chart(fig, width="stretch", on_select="rerun",
-                                    selection_mode="points", key="fit_time")
-            clicked_tid = consume_selection("fit_time", event, labels=splot["thread_id"].tolist())
-            if clicked_tid:
-                clicked_rows = splot[splot["thread_id"] == str(clicked_tid)]
-                if not clicked_rows.empty:
-                    row0 = clicked_rows.iloc[0]
-                    inline_insights(
-                        f"{row0.get('company_name', 'Application')} "
-                        f"({row0.get('fit_score', 0):.0f}% fit)", clicked_rows)
-        else:
-            st.info("No scored applications.")
+            bucket = view["application_date"].dt.to_period("M").dt.start_time.dt.strftime(fmt)
+            xlabel = "Month"
+        velocity = (view.assign(_bucket=bucket)
+                    .groupby(["_bucket", "current_status"]).size().reset_index(name="count"))
+        # Force a stable stack order (Applied → … → Ghosted) in every bucket, so the
+        # same colour sits in the same place across the whole chart.
+        _rank = {status: i for i, status in enumerate(STATUS_ORDER)}
+        velocity["_rank"] = velocity["current_status"].map(_rank).fillna(len(_rank))
+        velocity = velocity.sort_values(["_bucket", "_rank"])
+        totals = velocity.groupby("_bucket")["count"].sum()
+        fig = px.bar(velocity, x="_bucket", y="count", color="current_status",
+                     custom_data=["_bucket"],
+                     color_discrete_map=STATUS_COLORS,
+                     category_orders={
+                         "_bucket": sorted(velocity["_bucket"].unique()),
+                         "current_status": list(STATUS_ORDER),
+                     },
+                     labels={"_bucket": xlabel, "count": "Applications", "current_status": "Status"})
+        fig.update_layout(barmode="stack", legend_traceorder="normal")
+        style_fig(fig, 360)
+        _lift = max(totals.max() * 0.04, 0.4)
+        for x, total in totals.items():
+            fig.add_annotation(x=x, y=total + _lift, text=f"<b>{total}</b>",
+                               showarrow=False, font=dict(color="#9db9ff", size=12))
+        fig.update_yaxes(range=[0, totals.max() + _lift * 4])
+        ev = st.plotly_chart(fig, width="stretch", on_select="rerun",
+                             selection_mode="points", key="velocity_chart")
+        bucket_id = consume_selection("velocity_chart", ev)
+        if bucket_id is not None:
+            bucket_rows = view[view["application_date"].dt.strftime(fmt) == str(bucket_id)]
+            if not bucket_rows.empty:
+                inline_insights(f"Week starting {bucket_id}", bucket_rows)
 
     st.subheader("Platform, Job Type & Industry")
     perf = platform_performance(valid)
@@ -1486,11 +1289,9 @@ def render_applications_tab(valid: pd.DataFrame, view: pd.DataFrame, stale_count
         st.markdown("**Platform Performance** (where you actually get responses)")
         if not perf.empty:
             st.dataframe(
-                perf.rename(columns={"source_platform": "Platform", "AvgFit": "Avg Fit"}),
+                perf.rename(columns={"source_platform": "Platform"}),
                 width="stretch", hide_index=True,
                 column_config={
-                    "Avg Fit": st.column_config.ProgressColumn("Avg Fit", min_value=0, max_value=100,
-                                                               format="%.0f%%"),
                     "Response %": st.column_config.NumberColumn("Response %", format="%.1f%%"),
                     "Interview %": st.column_config.NumberColumn("Interview %", format="%.1f%%"),
                 },
@@ -1563,205 +1364,57 @@ def render_applications_tab(valid: pd.DataFrame, view: pd.DataFrame, stale_count
             if not sen_rows.empty:
                 inline_insights(f"Seniority: {sen}", sen_rows)
 
-    missing_df = aggregate_missing_skills(valid)
     comp_df = company_summary(valid)
     left, right = st.columns(2)
     with left:
-        st.markdown("**Skill Gaps to Close** (demanded in your pipeline + live market, not on your CV) — click a bar")
-        if not missing_df.empty:
-            asc = missing_df.sort_values("count", ascending=True)
-            top_skill = asc["skill"].iloc[-1]
-            colors = ["#EF553B" if s == top_skill else "#4F8CFF" for s in asc["skill"]]
-            fig = px.bar(asc, x="count", y="skill", orientation="h",
-                         custom_data=["skill"],
-                         labels={"count": "Roles demanding it", "skill": ""})
-            fig.update_traces(marker_color=colors, text=asc["count"],
-                              textposition="outside", cliponaxis=False)
-            style_fig(fig, 340)
-            ev = st.plotly_chart(fig, width="stretch", on_select="rerun",
-                                 selection_mode="points", key="gap_chart")
-            skill = consume_selection("gap_chart", ev,
-                                      labels=missing_df["skill"].tolist())
-            if skill:
-                demand_re = matcher.demand_patterns.get(str(skill), "")
-                def _demands(r):
-                    text = f"{r['role_title'] or ''} {r['job_description_snippet'] or ''}".lower()
-                    return bool(demand_re) and re.search(demand_re, text) is not None
-                skill_rows = valid[valid.apply(_demands, axis=1)]
-                if skill_rows.empty:
-                    skill_rows = valid[valid["missing_skills"].apply(
-                        lambda ms: str(skill) in (ms if isinstance(ms, list) else []))]
-                if not skill_rows.empty:
-                    inline_insights(f"Skill: {skill} — where it is demanded", skill_rows)
-        else:
-            st.caption("No skill gaps detected yet — click **Scrape missing JDs** to enrich.")
-    with right:
         st.markdown("**Company Pipeline Summary** (top 20)")
         if not comp_df.empty:
             st.dataframe(
-                comp_df.rename(columns={"company_name": "Company", "AvgFit": "Avg Fit",
+                comp_df.rename(columns={"company_name": "Company",
                                         "LastUpdate": "Last Update"}),
                 width="stretch", hide_index=True,
                 column_config={
-                    "Avg Fit": st.column_config.ProgressColumn("Avg Fit", min_value=0, max_value=100,
-                                                               format="%.0f%%"),
                     "Last Update": st.column_config.DateColumn(format="YYYY-MM-DD"),
                 },
             )
         else:
             st.caption("No companies yet.")
 
-    render_cv_gap_report(valid)
     render_company_dupes(valid)
+    render_reports(stale_count=stale_count)
 
     st.divider()
-    head_col, btn_col, btn_col2 = st.columns([3, 1, 1])
+    head_col, btn_col = st.columns([3, 1])
     with head_col:
-        st.subheader(f"📋 Interactive Tracker ({len(view)} shown of {total_valid} valid)")
+        st.subheader(f"Interactive tracker ({len(view)} shown of {total_valid})")
     with btn_col:
         url_str = valid["job_url"].astype(str)
         thin = int(((url_str != "") & (url_str != "nan")
                     & (valid["job_description_snippet"].str.len() < 240)
                     & (url_str.apply(lambda u: not is_broken_job_url(u)))).sum())
-        st.button(f"🧲 Scrape missing JDs ({thin})",
-                  help="Re-scrapes known posting links (OG, 16 workers). Broken/logo links are "
-                       "skipped — fix them with the button on the right.",
+        st.button(f"Scrape missing JDs ({thin})",
+                  help="Re-scrapes the posting links already stored on your applications to fill "
+                       "in job descriptions. Broken/logo links are skipped.",
                   disabled=thin == 0, width="stretch", key="backfill_btn")
-    with btn_col2:
-        url_vals = valid["job_url"].astype(str)
-        thin_any = int((valid["job_description_snippet"].str.len() < 240).sum())
-        broken_n = int(url_vals.apply(lambda u: is_broken_job_url(u)).sum())
-        look_n = thin_any + broken_n
-        st.button(f"🔎 Look up JDs & fix broken links ({look_n})",
-                  help="Searches live listings per role and fuzzy-matches your jobs to pull real "
-                       "JDs AND replaces broken posting links (JobStreet tracking links that open a "
-                       "logo) with the live posting. Missing descriptions are filled too.",
-                  disabled=look_n == 0, width="stretch", key="lookup_btn")
 
     if st.session_state.get("backfill_btn"):
         run_jd_backfill(valid)
-    if st.session_state.get("lookup_btn"):
-        run_jd_lookup(valid)
 
+    url_vals = valid["job_url"].astype(str)
+    broken_n = int(url_vals.apply(lambda u: is_broken_job_url(u)).sum())
     if broken_n:
-        st.caption(f"⚠️ **{broken_n}** posting link(s) open a JobStreet logo instead of the job "
-                   "page — click **🔎 Look up JDs & fix broken links** above to auto-replace "
-                   "them with the live posting.")
+        st.caption(f"{broken_n} posting link(s) open a JobStreet logo instead of the job page — "
+                   "these are hidden from the table.")
 
-    st.caption("👆 **Interactive Tracker** — click any row to open its details below.")
     render_tracker(view, valid)
 
     st.download_button(
-        label="⬇️ Export filtered view to CSV",
+        label="Export filtered view to CSV",
         data=view.to_csv(index=False).encode("utf-8-sig"),
         file_name=f"filtered_applications_{datetime.now():%Y%m%d_%H%M}.csv",
         mime="text/csv",
     )
 
-
-def render_cv_gap_report(valid: pd.DataFrame):
-    """Exhaustive gap analysis: every applied job's JD text × every market signal × the CV,
-    plus live-market demand from the discovery cache."""
-    if valid.empty:
-        return
-    counts_demand = Counter()
-    counts_missing = Counter()
-    counts_matched = Counter()
-    for _, row in valid.iterrows():
-        text = f"{row['role_title'] or ''} {row['job_description_snippet'] or ''}"
-        for label, pattern, _ in matcher.DEMAND_COMPILED:
-            if pattern.search(text):
-                counts_demand[label] += 1
-        for s in (row["missing_skills"] if isinstance(row["missing_skills"], list) else []):
-            counts_missing[s] += 1
-        for s in (row["matched_skills"] if isinstance(row["matched_skills"], list) else []):
-            counts_matched[s] += 1
-
-    # live-market demand from the discovery cache (richer JD text)
-    market_demand = Counter()
-    try:
-        for job in storage.load_discovered():
-            text = f"{job.get('title', '')} {job.get('description', '')}"
-            for label, pattern, _ in matcher.DEMAND_COMPILED:
-                if pattern.search(text):
-                    market_demand[label] += 1
-    except Exception:
-        pass
-
-    if not counts_demand and not market_demand:
-        return
-
-    cv_text = matcher.get_cv_text().lower()
-    total = len(valid)
-    rows = []
-    for label in set(counts_demand) | set(market_demand):
-        pattern = matcher.demand_patterns.get(label)
-        demanded = counts_demand.get(label, 0)
-        market = market_demand.get(label, 0)
-        if demanded == 0 and market == 0 and counts_missing.get(label, 0) == 0:
-            continue
-        owned = bool(re.search(matcher.owned_regex(label), cv_text, flags=re.IGNORECASE))
-        missing = counts_missing.get(label, 0)
-        rows.append({
-            "Skill": label,
-            "Demanded in": demanded,
-            "% of pipeline": round(100 * demanded / total, 1) if total else 0,
-            "Live market": market,
-            "Missing in": missing,
-            "On my CV": "✅" if owned else "❌",
-            "Priority": round((missing * 2 + demanded + market) / (2 if owned else 1), 1),
-        })
-    report = pd.DataFrame(rows)
-    if report.empty:
-        return
-    report = report.sort_values("Priority", ascending=False)
-
-    with st.expander("🧬 CV Gap Report — exhaustive analysis of your CV vs every applied job + the live market", expanded=False):
-        st.caption(f"Mined from {total} applications (titles + scraped JDs) and the live-market "
-                   f"cache, cross-referenced against your curated CV.")
-        gap_ai = None
-        if st.session_state.get("gen_gap"):
-            gap_ai = ai_gap_narrative(report)
-        elif ai_want():
-            if st.button("🤖 Generate AI action plan", key="gen_gap_btn", width="stretch",
-                         help="AI-prioritized next steps for closing your top gaps — one free "
-                              "API call, cached after the first time."):
-                st.session_state["gen_gap"] = True
-                st.rerun()
-        if gap_ai:
-            st.markdown(gap_ai)
-            st.caption("🤖 AI-prioritized action plan — the numbers above are from your data")
-        top = report.head(6)
-        for _, r in top.iterrows():
-            if r["Missing in"] > 0:
-                st.markdown(
-                    f"- **{r['Skill']}** — demanded in {r['% of pipeline']}% of your pipeline "
-                    f"({r['Demanded in']} roles), still missing in {r['Missing in']}. "
-                    + ("Already on your CV — deepen the project evidence."
-                       if r["On my CV"] == "✅" else
-                       "**Not on your CV** — one targeted project/certification closes this gap."))
-            else:
-                st.markdown(f"- ✅ **{r['Skill']}** — demanded in {r['% of pipeline']}% of your "
-                            f"pipeline ({r['Live market']} live listings) and covered by your CV. "
-                            f"Keep leading with it.")
-        st.dataframe(report, width="stretch", hide_index=True,
-                     column_config={
-                         "% of pipeline": st.column_config.NumberColumn(format="%.1f%%"),
-                     })
-        st.download_button(
-            "⬇️ Export gap report CSV",
-            data=report.to_csv(index=False).encode("utf-8-sig"),
-            file_name=f"cv_gap_report_{datetime.now():%Y%m%d}.csv",
-            mime="text/csv",
-        )
-        chart_df = report[["Skill", "Demanded in", "Live market", "Missing in"]].set_index("Skill").head(10)
-        fig = px.bar(chart_df, barmode="group",
-                     color_discrete_map={"Demanded in": "#4F8CFF", "Live market": "#22D3EE",
-                                         "Missing in": "#EF553B"},
-                     labels={"value": "Roles", "index": ""})
-        style_fig(fig, 340)
-        fig.update_layout(legend_title_text="")
-        st.plotly_chart(fig, width="stretch")
 
 
 def render_company_dupes(valid: pd.DataFrame):
@@ -1771,34 +1424,14 @@ def render_company_dupes(valid: pd.DataFrame):
     g = valid.groupby("company_name").agg(
         Applications=("thread_id", "count"),
         Roles=("role_title", lambda s: " · ".join(sorted({str(x) for x in s if str(x) not in ("", "nan")}))[:200]),
-        AvgFit=("fit_score", "mean"),
     ).reset_index()
     g = g[g["Applications"] > 1].sort_values("Applications", ascending=False)
     if g.empty:
         return
-    g["AvgFit"] = g["AvgFit"].round(1)
     with st.expander(f"🏢 Employers you've applied to multiple times ({len(g)})", expanded=False):
         st.caption("More applications ≠ better odds at the same firm. Pick the strongest fit, "
                    "tailor it hard, and chase a referral or recruiter ping for that one.")
-        strat = None
-        if st.session_state.get("gen_company"):
-            strat = ai_company_strategy(valid)
-        elif ai_want():
-            if st.button("🤖 Generate AI strategy", key="gen_company_btn", width="stretch",
-                         help="AI advice for handling multiple applications at the same employer — "
-                              "one free API call, cached after the first time."):
-                st.session_state["gen_company"] = True
-                st.rerun()
-        if strat:
-            st.markdown(strat)
-            st.caption("🤖 AI strategy — based on the employers and roles above")
-        st.dataframe(
-            g, width="stretch", hide_index=True,
-            column_config={
-                "AvgFit": st.column_config.ProgressColumn("Avg Fit", min_value=0, max_value=100,
-                                                          format="%.0f%%"),
-            },
-        )
+        st.dataframe(g, width="stretch", hide_index=True)
 
 
 def render_activity_feed():
@@ -1811,18 +1444,6 @@ def render_activity_feed():
     with st.expander(f"📜 Recent activity ({len(feed)} events)", expanded=False):
         st.caption("Status changes are logged every time you override a status, Gmail updates a "
                    "thread, or auto-ghosting fires. Recent application updates appear too.")
-        act_ai = None
-        if st.session_state.get("gen_activity"):
-            act_ai = ai_activity_summary(feed)
-        elif ai_want():
-            if st.button("🤖 Generate AI momentum summary", key="gen_activity_btn", width="stretch",
-                         help="AI summary of your recent activity + next best move — one free API "
-                              "call, cached after the first time."):
-                st.session_state["gen_activity"] = True
-                st.rerun()
-        if act_ai:
-            st.markdown(act_ai)
-            st.caption("🤖 AI momentum summary")
         for ev in feed[:30]:
             ts = esc(ev.get("ts") or "?")
             comp = esc(ev.get("company_name") or "?")
@@ -1885,97 +1506,9 @@ def run_jd_backfill(valid: pd.DataFrame):
             updated += 1
         status.update(label=f"✅ {updated} JD(s) enriched · {blocked} blocked by the platform",
                       state="complete")
-    # re-fit the enriched rows
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        updated_rows = conn.execute(
-            "SELECT thread_id, role_title, job_description_snippet FROM applications WHERE is_valid=1"
-        ).fetchall()
-        conn.close()
-        results = {r["thread_id"]: matcher.analyze(r["role_title"], r["job_description_snippet"] or "")
-                   for r in updated_rows}
-        storage.save_fit_results(results)
-    except Exception:
-        pass
     st.cache_data.clear()
     st.rerun()
 
-
-def run_jd_lookup(valid: pd.DataFrame):
-    """Find live postings matching tracked jobs, pull their JDs AND repair broken links.
-
-    Targets = rows missing JD text OR carrying a broken posting link (e.g. JobStreet
-    tracking links that resolve to a logo). Matched rows get the live posting URL
-    (+ description when missing); broken links with no live match are cleared so the
-    UI never offers a dead logo link again.
-    """
-    import jd_lookup
-
-    url_vals = valid["job_url"].astype(str)
-    thin = valid[valid["job_description_snippet"].str.len() < 240]
-    broken = valid[url_vals.apply(lambda u: is_broken_job_url(u))]
-    targets = pd.concat([thin, broken]).drop_duplicates(subset="thread_id")
-    targets = targets[~targets["role_title"].isna()]
-    if targets.empty:
-        st.toast("Nothing to look up or repair — every tracked job has JD text and its posting "
-                 "link opens a real page", icon="✅")
-        return
-    snippet_len = {r["thread_id"]: len(str(r["job_description_snippet"] if r["job_description_snippet"] is not None else ""))
-                   for _, r in targets.iterrows()}
-    tid_good_url = {tid: ("" if is_broken_job_url(u) else str(u))
-                    for tid, u in zip(valid["thread_id"], url_vals)}
-    broken_ids = set(broken["thread_id"])
-    pairs = [(r["thread_id"], r["role_title"], r["company_name"]) for _, r in targets.iterrows()]
-    with st.status(f"🔎 Searching live listings for {len(pairs)} job(s) and repairing links...",
-                   expanded=True) as status:
-        log = st.empty()
-        results = jd_lookup.lookup_batch(
-            pairs, max_workers=6,
-            on_progress=lambda d, t: log.markdown(f"Fetched role pools `{d}/{t}`"))
-        matched = {k: v for k, v in results.items() if v}
-        fixed = 0
-        snippets_filled = 0
-        cleared = 0
-        for tid, hit in matched.items():
-            desc = (hit.get("description") or "").strip()
-            if desc and snippet_len.get(tid, 0) < 240:
-                storage.update_snippet(tid, desc)
-                snippets_filled += 1
-            # only repoint the URL when the stored one is broken/missing — never overwrite a
-            # working link to the exact posting you applied to.
-            if not tid_good_url.get(tid, ""):
-                new_url = (hit.get("url") or "").strip()
-                if new_url and not is_broken_job_url(new_url):
-                    storage.set_job_url(tid, new_url)
-                    fixed += 1
-        # broken links we could not replace should not keep offering a logo page
-        for tid in broken_ids:
-            hit = matched.get(tid)
-            replaced = bool(hit and (hit.get("url") or "").strip()
-                            and not is_broken_job_url(hit.get("url")))
-            if not replaced:
-                if storage.set_job_url(tid, ""):
-                    cleared += 1
-        status.update(
-            label=f"✅ Replaced {fixed} broken link(s) with live pages · filled "
-                  f"{snippets_filled} JD(s) · cleared {cleared} dead logo link(s) · "
-                  f"{len(targets) - fixed - cleared} unmatched (posting may be offline)",
-            state="complete")
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            "SELECT thread_id, role_title, job_description_snippet FROM applications WHERE is_valid=1"
-        ).fetchall()
-        conn.close()
-        results_fit = {r["thread_id"]: matcher.analyze(r["role_title"], r["job_description_snippet"] or "")
-                       for r in rows}
-        storage.save_fit_results(results_fit)
-    except Exception:
-        pass
-    st.cache_data.clear()
-    st.rerun()
 
 
 def render_noise_editor(noise_view: pd.DataFrame):
@@ -2077,25 +1610,16 @@ def inline_insights(title: str, rows: pd.DataFrame, _dialog_note: str = ""):
         st.toast("No matching applications to show", icon="ℹ️")
         return
     with st.expander(f"🔍 Full insights — {title}", expanded=True):
-        avg = rows["fit_score"].dropna()
         progressed = int(rows["current_status"].isin(
             ["Assessment / OA", "Interview", "Offer"]).sum())
         rejected = int((rows["current_status"] == "Rejected").sum())
         stats = [f"**{len(rows)}** application(s)"]
-        if len(avg):
-            stats.append(f"avg fit **{avg.mean():.0f}%**")
         stats.append(f"**{progressed}** progressed · **{rejected}** rejected")
         st.caption(" · ".join(stats))
         shown = rows.sort_values("application_date", ascending=False).head(12)
         for _, row in shown.iterrows():
-            fit = row.get("fit_score")
-            chips = [fit_chip(fit) if pd.notna(fit) else
-                     "<span class='fit-chip fit-amber'>—</span>",
-                     f"<span class='compact-meta'>{esc(row['current_status'])} · "
+            chips = [f"<span class='compact-meta'>{esc(row['current_status'])} · "
                      f"{esc(row.get('job_type') or '—')}</span>"]
-            missing = (row.get("missing_skills") or [])
-            if missing:
-                chips.append(f"<span class='fit-chip fit-red'>❌ {esc(missing[0])}</span>")
             links = []
             glink = safe_url(row.get("gmail_link", ""))
             jurl, _ = safe_post_link(row.get("job_url", ""))
@@ -2112,12 +1636,10 @@ def inline_insights(title: str, rows: pd.DataFrame, _dialog_note: str = ""):
 
 
 def detail_body(row, key_prefix: str = "dlg"):
-    """Full application detail: fit, gaps, JD text, requirements — for dialogs."""
+    """Full application detail: JD text, requirements, status, notes — for dialogs."""
     snippet = str(row.get("job_description_snippet", "") or "")
     snippet = snippet.replace("%str_to_replace_open_tracking%", "")
     snippet = "" if snippet.lower() in ("", "nan") else snippet.strip()
-    missing = row.get("missing_skills") or []
-    matched = row.get("matched_skills") or []
 
     bcol, _ = st.columns([0.16, 4.2], vertical_alignment="center")
     with bcol:
@@ -2128,11 +1650,6 @@ def detail_body(row, key_prefix: str = "dlg"):
             st.rerun()
 
     st.markdown(f"### {esc(row['company_name'])} — {esc(role_display(row['role_title']))}")
-    fit = row.get("fit_score")
-    chips = [fit_chip(fit) if pd.notna(fit) else "<span class='fit-chip fit-amber'>—</span>"]
-    chips += [f"<span class='fit-chip fit-green'>{esc(m)}</span>" for m in matched[:3]]
-    chips += [f"<span class='fit-chip fit-red'>{esc(m)}</span>" for m in missing[:3]]
-    st.markdown(" ".join(chips), unsafe_allow_html=True)
     st.markdown(
         f"<span class='compact-meta'>{esc(row['source_platform'])} · "
         f"{esc(row.get('job_type') or '—')} · "
@@ -2147,11 +1664,6 @@ def detail_body(row, key_prefix: str = "dlg"):
         if snippet:
             st.markdown(f"<div class='jd-block'>{esc(snippet[:1400])}</div>",
                         unsafe_allow_html=True)
-            reqs = matcher.extract_requirements(snippet)
-            if reqs:
-                st.markdown("**Role requirements (extracted)**")
-                for r in reqs:
-                    st.markdown(f"- {esc(r)}")
         elif safe_post_link(row.get("job_url"))[0]:
             st.markdown(f"🔗 [Open original job posting ↗]({safe_post_link(row.get('job_url'))[0]})")
             st.caption("No description cached for this application.")
@@ -2164,23 +1676,6 @@ def detail_body(row, key_prefix: str = "dlg"):
         if gmail:
             st.markdown(f"📧 [Open Gmail thread ↗]({gmail})")
     with c2:
-        gap_analysis = render_gap_analysis(
-            row["role_title"], snippet,
-            fallback_matched=matched, fallback_missing=missing,
-            fallback_tips=row.get("actionable_improvements") or [],
-        )
-        if ai_want():
-            if st.button("🤖 AI: why this score & how to improve",
-                         key=f"{key_prefix}_ai_fit",
-                         help="One free API call, cached after the first time."):
-                st.session_state[f"gen_fit_{row['thread_id']}"] = True
-        if st.session_state.get(f"gen_fit_{row['thread_id']}"):
-            fit_ai = ai_fit_explanation(row["role_title"], snippet, gap_analysis)
-            if fit_ai:
-                st.markdown("**🤖 Why this score & how to improve**")
-                st.markdown(fit_ai)
-            else:
-                st.caption("AI returned nothing usable — the deterministic tips above apply.")
         current = row["current_status"]
         idx = STATUSES.index(current) if current in STATUSES else 0
         new_status = st.selectbox("Status override", options=STATUSES, index=idx,
@@ -2281,7 +1776,6 @@ def render_tracker(view: pd.DataFrame, valid: pd.DataFrame):
     }).copy()
     table["Gmail Thread"] = table["Gmail Thread"].replace({"": None, "nan": None})
     table["Role"] = table["Role"].fillna("").map(role_display)
-    table["Fit Score"] = table["fit_score"].where(table["fit_score"].notna(), None)
 
     today_n = pd.Timestamp.today().normalize()
     ref = table["Last Update"].fillna(table["Application Date"])
@@ -2295,8 +1789,6 @@ def render_tracker(view: pd.DataFrame, valid: pd.DataFrame):
         column_config={
             "Application Date": st.column_config.DateColumn(format="YYYY-MM-DD"),
             "Last Update": st.column_config.DateColumn(format="YYYY-MM-DD"),
-            "Fit Score": st.column_config.ProgressColumn("Fit Score", min_value=0, max_value=100,
-                                                         format="%.0f%%"),
             "Waiting": st.column_config.NumberColumn("Waiting (days)", format="%d",
                                                      help="Days since the last update (or the "
                                                           "application date)"),
@@ -2438,14 +1930,6 @@ def render_followup_queue(valid: pd.DataFrame):
     with st.expander(label, expanded=False):
         st.caption("Polite nudges are most effective 5–10 days after applying. Ghosted threads "
                    "(>21 days, no reply) are worth one last closing-the-loop email — then let them go.")
-        if shown and ai_want():
-            if st.session_state.get("gen_drafts"):
-                drafts = ai_drafts(shown)
-            elif st.button("🤖 Generate AI drafts", key="gen_drafts_btn", width="stretch",
-                           help="Writes tailored follow-up emails for the roles below — one free "
-                                "API call, cached after the first time."):
-                st.session_state["gen_drafts"] = True
-                st.rerun()
         for row, tier, wait in shown:
             with st.container(border=True):
                 meta, actions = st.columns([3, 1.05], vertical_alignment="center")
@@ -2454,9 +1938,6 @@ def render_followup_queue(valid: pd.DataFrame):
                         f"**{esc(row['company_name'])}** — {esc(role_display(row['role_title']))}  \n"
                         + " ".join([
                             _status_pill("Nudge" if tier == "nudge" else "Ghosted"),
-                            f"<span class='fit-chip fit-{ 'green' if (row.get('fit_score') or 0) >= 75 else ('amber' if (row.get('fit_score') or 0) >= 50 else 'red') }'>"
-                            f"{(row.get('fit_score') or 0):.0f}% Fit</span>"
-                            if pd.notna(row.get("fit_score")) else "",
                             f"<span class='compact-meta'>waited {wait}d</span>",
                         ]),
                         unsafe_allow_html=True)
@@ -2488,223 +1969,8 @@ def render_followup_queue(valid: pd.DataFrame):
                 with st.expander(f"✍️ Draft follow-up email"):
                     draft = drafts.get(str(row["thread_id"])) or _followup_draft(row, tier)
                     st.code(draft, language=None)
-                    if st.session_state.get("gen_drafts"):
-                        if ai_want() and str(row["thread_id"]) not in drafts:
-                            err = ai.last_error()
-                            st.caption("AI draft unavailable for this row — showing the template."
-                                       + (f"  ({err})" if err else ""))
-                    elif ai_want():
-                        st.caption("Click **Generate AI drafts** above for AI-tailored emails.")
         if len(queue) > 6:
             st.caption(f"+ {len(queue) - 6} more — select their rows in the tracker to update status.")
-
-
-def render_saved_pipeline(saved: pd.DataFrame):
-    """Saved / Planning rows live OUTSIDE the main KPIs; manage them here."""
-    if saved.empty:
-        return
-    with st.expander(f"🗂 Saved / Planning — {len(saved)} role(s) from Live Matches", expanded=False):
-        st.caption("These live outside the funnel/KPIs until you actually apply. Click "
-                   "**Mark Applied** when you submit — it stamps today as the application "
-                   "date and the row joins your tracker & analytics.")
-        for _, row in saved.iterrows():
-            with st.container(border=True):
-                meta, actions = st.columns([3, 1.05], vertical_alignment="center")
-                with meta:
-                    chips = [f"<span class='compact-meta'>{esc(row.get('source_platform', ''))} · "
-                             f"added {row['application_date']:%d %b %Y}</span>"]
-                    if pd.notna(row.get("fit_score")):
-                        chips.insert(0, fit_chip(row.get("fit_score")))
-                    note = row.get("notes") or ""
-                    if note:
-                        chips.append(f"<span class='compact-meta'>🗒 {esc(note[:80])}</span>")
-                    st.markdown(f"**{esc(row['company_name'])}** — {esc(role_display(row['role_title']))}  \n"
-                                + " ".join(chips), unsafe_allow_html=True)
-                    links = _row_links_html(row)
-                    if links:
-                        st.markdown(links)
-                with actions:
-                    if st.button("✅ Mark Applied", key=f"saved_app_{row['thread_id']}"):
-                        res = storage.mark_applied(row["thread_id"])
-                        st.cache_data.clear()
-                        st.toast("Moved to Applied — recorded today as application date" if res == "applied"
-                                 else "Marked as Applied")
-                        st.rerun()
-                    if st.button("🗑 Remove", key=f"saved_del_{row['thread_id']}",
-                                 help="Delete this saved role from the tracker"):
-                        storage.delete_application(row["thread_id"])
-                        st.cache_data.clear()
-                        st.toast("Removed from tracker")
-                        st.rerun()
-                with st.expander("🧬 Fit breakdown & notes"):
-                    desc = row.get("job_description_snippet") or ""
-                    render_gap_analysis(row["role_title"], desc,
-                                        fallback_matched=row.get("matched_skills") or [],
-                                        fallback_missing=row.get("missing_skills") or [],
-                                        fallback_tips=row.get("actionable_improvements") or [])
-                    render_notes_editor(row["thread_id"], note or "",
-                                        key_prefix=f"saved_{row['thread_id'][-12:]}")
-
-
-def render_discovery_tab():
-    jobs = load_discovered_cached(DB_PATH, mtime_of(DB_PATH)) if os.path.exists(DB_PATH) else []
-    tracked = set()
-    if os.path.exists(DB_PATH):
-        try:
-            tracked = storage.get_tracked_discovery_keys()
-        except Exception:
-            tracked = set()
-
-    top = st.columns([1.1, 3])
-    with top[0]:
-        scan_clicked = st.button("🔄 Scan Live Market", type="primary",
-                                 disabled=st.session_state.get("scan_running", False),
-                                 width="stretch")
-    with top[1]:
-        if jobs:
-            last = jobs[0].get("discovered_at", "?")
-            sources = {j.get("source") for j in jobs}
-            st.caption(f"Cache: **{len(jobs)}** live roles (scanned {last}) · sources: "
-                       f"{', '.join(sorted(sources))} — JobStreet/Hiredly may be empty from "
-                       f"non-MY networks; rescan from a Malaysian connection for full coverage.")
-            if ai_want():
-                if st.button("🤖 Generate AI market read", key="gen_market_btn", width="stretch",
-                             help="AI summary of the cached live roles — one free API call, "
-                                  "cached after the first time."):
-                    st.session_state["gen_market"] = True
-                    st.rerun()
-            market_ai = ai_market_summary(jobs) if st.session_state.get("gen_market") else None
-            if market_ai:
-                st.markdown(market_ai)
-                st.caption("🤖 AI read on the live market — role cards below are your data")
-        else:
-            st.caption("No cached market data yet — click **Scan Live Market** to pull live "
-                       "Malaysian roles (no API keys needed).")
-    if scan_clicked:
-        run_market_scan()
-
-    with st.container():
-        f1, f2, f3 = st.columns([1.4, 1, 1.2])
-        roles = f1.multiselect("Target Role", options=DISCOVERY_ROLES,
-                               default=DISCOVERY_ROLES, key="disc_roles")
-        min_fit = f2.slider("Minimum Fit Score %", 0, 100, 40, step=5, key="disc_minfit")
-        platforms_present = sorted({j.get("source", "") for j in jobs} - {""})
-        chosen_platforms = f3.multiselect("Platform", options=platforms_present,
-                                          default=platforms_present, key="disc_platforms")
-
-    if not jobs:
-        st.info("Run a scan to populate live listings. Results are cached in SQLite, "
-                "so re-filtering is instant afterwards.")
-        return
-
-    rows = []
-    for job in jobs:
-        if roles and job.get("search_role") not in roles:
-            continue
-        if chosen_platforms and job.get("source") not in chosen_platforms:
-            continue
-        if job.get("fit_score") is None or (job.get("fit_score") or 0) < min_fit:
-            continue
-        rows.append(job)
-
-    st.caption(f"**{len(rows)}** live roles match your filters (ranked by Fit Score %). "
-               f"Expand **JD & Fit Breakdown** on any card for requirements and improvements.")
-    if not rows:
-        st.info("No live roles above the minimum fit score. Lower the slider or rescan.")
-        return
-    st.download_button(
-        "⬇️ Export filtered matches CSV",
-        data=pd.DataFrame(rows).to_csv(index=False).encode("utf-8-sig"),
-        file_name=f"live_matches_{datetime.now():%Y%m%d_%H%M}.csv",
-        mime="text/csv",
-    )
-
-    for job in rows[:60]:
-        key = job["job_key"]
-        with st.container(border=True):
-            c1, c2, c3 = st.columns([0.9, 3, 1.5], vertical_alignment="center")
-            with c1:
-                st.markdown(fit_chip(job.get("fit_score")), unsafe_allow_html=True)
-            with c2:
-                st.markdown(f"**{esc(job.get('title', 'Untitled'))}**")
-                st.markdown(
-                    f"{esc(job.get('company', 'Unknown'))} · `{esc(job.get('source', ''))}` · "
-                    f"{esc(job.get('location', '') or '—')}"
-                    + (f" · posted {esc(job.get('posted_date', ''))}" if job.get("posted_date") else "")
-                )
-                missing = _parse_json_list(job.get("missing_skills"))
-                if missing:
-                    st.markdown("**Top missing:** " + " ".join(
-                        f"<span class='fit-chip fit-red'>{esc(m)}</span>" for m in missing[:2]),
-                        unsafe_allow_html=True)
-                matched = _parse_json_list(job.get("matched_skills"))
-                if matched:
-                    st.markdown("**Matched:** " + " ".join(
-                        f"<span class='fit-chip fit-green'>{esc(m)}</span>" for m in matched[:4]),
-                        unsafe_allow_html=True)
-            with c3:
-                url = safe_url(job.get("url", ""))
-                already = key in tracked
-                if url and not already:
-                    st.link_button("Apply on Platform ↗", url, width="stretch")
-                elif url:
-                    st.link_button("Apply on Platform ↗", url, width="stretch", type="secondary")
-                elif not already:
-                    st.button("Apply on Platform ↗", disabled=True, width="stretch",
-                              key=f"apply_na_{key}")
-                if already:
-                    st.button("✓ Already in tracker", disabled=True, width="stretch",
-                              help="In your Saved / Planning pipeline — open it under "
-                                   "🗂 Saved / Planning on the Applications tab.")
-                elif st.button("＋ Add to My Tracker", width="stretch", key=f"add_{key}"):
-                    payload = dict(job)
-                    payload["matched_skills"] = _parse_json_list(job.get("matched_skills"))
-                    payload["missing_skills"] = _parse_json_list(job.get("missing_skills"))
-                    result = storage.add_manual_application(payload)
-                    if result == "exists":
-                        st.toast("Already in your tracker", icon="ℹ️")
-                    else:
-                        st.toast(f"Added: {job.get('title', '')[:40]} (Saved / Planning)", icon="✅")
-                        st.cache_data.clear()
-                        st.rerun()
-
-            with st.expander("📄 View JD & Fit Breakdown"):
-                desc = job.get("description") or ""
-                if desc:
-                    st.markdown(f"<div class='jd-block'>{esc(desc[:1200])}</div>",
-                                unsafe_allow_html=True)
-                    reqs = matcher.extract_requirements(desc)
-                    if reqs:
-                        st.markdown("**📑 Role requirements (extracted)**")
-                        for r in reqs:
-                            st.markdown(f"- {esc(r)}")
-                    st.markdown("### 🧬 Your fit for this role")
-                    render_gap_analysis(job.get("title", ""), desc,
-                                        fallback_matched=_parse_json_list(job.get("matched_skills")),
-                                        fallback_missing=missing)
-                elif url:
-                    st.caption("No description cached for this listing — fetch it from the posting:")
-                    if st.button("⬇ Fetch JD from posting (OG scrape, 4s)", key=f"fetch_{key}"):
-                        with st.spinner("Fetching job page..."):
-                            payload = enricher.enrich(url)
-                        if payload.get("ok"):
-                            fetched = f"{payload.get('og_title', '')} — {payload.get('og_description', '')}".strip(" —")
-                            extra = " ".join(f"[{k}: {payload[k]}]" for k in
-                                             ("company", "location", "salary", "employment_type")
-                                             if payload.get(k))
-                            if extra:
-                                fetched = f"{fetched} {extra}".strip()
-                            analysis = matcher.analyze(job.get("title", ""), fetched)
-                            storage.update_discovered_description(key, fetched, analysis)
-                            st.toast("JD fetched & re-scored against your CV")
-                            st.cache_data.clear()
-                            st.rerun()
-                        else:
-                            st.warning(f"Could not fetch ({payload.get('reason')}) — the platform "
-                                       f"blocks scrapers. Use the Apply link to read the JD, then "
-                                       f"paste key lines into your CV drawer to re-score.")
-                else:
-                    st.caption("No description or URL available for this listing.")
 
 
 # ------------------------------------------------------------------ main
@@ -2723,8 +1989,8 @@ def _ensure_fresh_modules():
     """
     global STATUSES
     modules = {}
-    for name in ("main", "storage", "parser", "matcher", "gmail_fetcher", "enricher",
-                 "discovery", "jd_lookup", "ai", "repair"):
+    for name in ("main", "storage", "parser", "gmail_fetcher", "enricher",
+                 "warehouse", "warehouse_etl", "warehouse_queries", "bi_export"):
         mod = sys.modules.get(name)
         if mod is None or not getattr(mod, "__file__", None):
             continue
@@ -2780,45 +2046,32 @@ def main():
     require_password()
 
     # Self-heal: a "running" flag only has meaning inside the single run that starts the work.
-    # If a previous sync/scan was aborted (browser closed mid-run, crash, tunnel drop), the flag
+    # If a previous sync was aborted (browser closed mid-run, crash, tunnel drop), the flag
     # can be left True in the session, which would disable the buttons forever. A fresh run never
-    # legitimately starts with these True — so clear them.
+    # legitimately starts with it True — so clear it.
     st.session_state["sync_running"] = False
-    st.session_state["scan_running"] = False
 
     st.title("🎯 Job Application Suite")
     header_cap = st.caption("Personal analytics for your job hunt — loading data…")
     sync_zone = st.empty()  # live sync progress is rendered here (main column, always visible)
 
     with st.sidebar:
-        # --- chart interaction mode (must run before the charts) ---
-        anim = st.toggle("🎬 Chart hover animations", value=True,
-                         help="ON: bars, dots and funnel slices enlarge + brighten under the "
-                              "cursor (native tooltips are not available in this mode — the "
-                              "numbers are printed on the charts).  \n"
-                              "OFF: hover shows info tooltips and clicking a chart element "
-                              "opens its inline insights below the chart. Donuts always have both.")
-        st.markdown(
-            "<style>" + (PE_CSS_ANIM if anim else "") + "</style>",
-            unsafe_allow_html=True)
-
-        st.header("⚡ Sync")
+        st.header("Sync", icon=":material/sync:")
         running = st.session_state.get("sync_running", False)
-        force_full = st.toggle("Force Full Re-sync", value=False,
+        force_full = st.toggle("Force full re-sync", value=False,
                                help="Re-evaluates the whole mailbox with the current filter rules "
                                     "— every cached email is re-parsed offline and any missing "
                                     "body is re-downloaded once, so improved classification "
-                                    "recovers older false negatives. Use after filter/CV changes.")
-        if st.button("▶ Sync Gmail Now", type="primary", disabled=running,
-                     width="stretch",
-                     help="Fetches new emails, filters noise, scrapes JDs, re-scores CV fit"):
+                                    "recovers older false negatives.")
+        if st.button("Sync Gmail now", type="primary", disabled=running, width="stretch",
+                     icon=":material/download:",
+                     help="Fetches new emails, filters the noise, and refreshes every report"):
             run_sync(force_full, zone=sync_zone)
         summary = st.session_state.get("last_sync_summary")
         if summary:
             st.caption(f"Last sync: **{summary['elapsed']:.1f}s** · found **{summary.get('found', 0)}** · "
                        f"{summary['inserted']} new · {summary['updated']} updated · "
-                       f"{summary['garbage']} noise · {summary['fit_scored']} fit · "
-                       f"{summary.get('ai_classified', 0)} AI-classified")
+                       f"{summary['garbage']} noise")
             deep = int(summary.get("bodies_cached", 0)) + int(summary.get("bodies_refetched", 0))
             if deep:
                 st.caption(f"🔎 Deep re-parse: {summary.get('bodies_cached', 0)} cached · "
@@ -2829,11 +2082,7 @@ def main():
 
         with st.expander("🛠 Maintenance", expanded=False):
             m1, m2 = st.columns(2)
-            if m1.button("🧬 Re-score all", width="stretch",
-                         help="Re-run the CV fit analyzer over every application + cached market "
-                              "role — use after editing your CV in the drawer below"):
-                run_rescore()
-            if m2.button("👻 Ghost stale >{}d".format(stale_days()), width="stretch",
+            if m1.button("👻 Ghost stale >{}d".format(stale_days()), width="stretch",
                          help=f"Persist the auto-ghosting rule: Applied rows with no update for "
                               f">{stale_days()} days become Ghosted in the database"):
                 persist_ghosting()
@@ -2869,7 +2118,7 @@ def main():
                     st.rerun()
             if st.button("💾 Backup data", width="stretch",
                          help="Snapshot applications.db + job_tracker.csv + sync state + CV "
-                              "profile + AI cache into backups/<timestamp>/ — safe before big "
+                              "profile into backups/<timestamp>/ — safe before big "
                               "syncs or filter changes."):
                 try:
                     folder = storage.backup_all()
@@ -2887,95 +2136,6 @@ def main():
                             help="Applied-but-silent roles enter the Follow-up queue after this many "
                                  "days.")
 
-        st.header("🤖 AI")
-        providers_opts = ai.providers()
-        cur_provider = st.session_state.get("ai_provider", ai.default_provider())
-        prov_idx = providers_opts.index(cur_provider) if cur_provider in providers_opts else 0
-        st.selectbox("Provider", options=providers_opts, index=prov_idx, key="ai_provider",
-                     help="Free providers (no billing). Gemini is the most stable free tier; "
-                          "Ollama runs fully locally & privately. 'Auto' uses OPENAI_* env vars "
-                          "or a local Ollama.")
-        provider = st.session_state["ai_provider"]
-        # reset the model picker when the provider changes (models differ between providers)
-        if st.session_state.get("ai_provider_prev") != provider:
-            st.session_state.pop("ai_model", None)
-        st.session_state["ai_provider_prev"] = provider
-
-        if provider == "Auto (env or Ollama)":
-            api_key = os.environ.get("OPENAI_API_KEY", "")
-        elif provider == "Ollama (local)":
-            preset_models = ai.provider_models(provider)
-            cur_m = st.session_state.get("ai_model") or (preset_models[0] if preset_models else "")
-            if preset_models and cur_m and cur_m not in preset_models:
-                st.session_state.pop("ai_model", None)
-                cur_m = preset_models[0]
-            if preset_models:
-                m_idx = preset_models.index(cur_m) if cur_m in preset_models else 0
-                st.selectbox("Model", options=preset_models, index=m_idx, key="ai_model")
-            else:
-                st.caption("Ollama not detected — install it and run `ollama pull llama3.2:3b`, "
-                           "then refresh.")
-            api_key = ""
-        else:
-            api_key = st.text_input(f"{provider} API key", type="password", key="ai_api_key",
-                                    help=ai.provider_key_hint(provider))
-            loaded_key = api_key or os.environ.get("OPENAI_API_KEY", "")
-            if loaded_key:
-                st.caption(f"Loaded: {ai.key_preview(loaded_key)}")
-            if not loaded_key:
-                signup = ai.provider_signup(provider)
-                st.caption(f"[get a free key here]({signup})")
-            preset_models = ai.provider_models(provider, api_key or None)
-            cur_m = st.session_state.get("ai_model") or (preset_models[0] if preset_models else "")
-            if preset_models and cur_m and cur_m not in preset_models:
-                st.session_state.pop("ai_model", None)
-                cur_m = preset_models[0]
-            elif preset_models and cur_m:
-                # auto-upgrade away from retired/older generations (e.g. 2.5-flash -> 3.6-flash)
-                cur_ver = ai.model_version(cur_m)
-                best_ver = ai.model_version(preset_models[0])
-                if cur_ver is not None and best_ver is not None and best_ver > cur_ver:
-                    st.session_state.pop("ai_model", None)
-                    cur_m = preset_models[0]
-            if preset_models:
-                m_idx = preset_models.index(cur_m) if cur_m in preset_models else 0
-                st.selectbox("Model", options=preset_models, index=m_idx, key="ai_model")
-            else:
-                st.text_input("Model name", key="ai_model")
-        st.toggle("Enable AI analysis", value=True, key="ai_enabled",
-                  help="Replaces deterministic tips/drafts with AI-generated analysis. Free-tier "
-                       "responses are cached on disk, so re-renders and restarts cost nothing.")
-        with st.expander("⚙️ Sync automation", expanded=False):
-            st.toggle("🤖 AI fit scores (sync)", value=True, key="ai_fit_ai",
-                      help="During sync/backfill, score CV fit with the AI (batched, persisted "
-                           "with fit_source='ai', never recomputed). Deterministic stays the "
-                           "fallback.")
-            st.toggle("🤖 AI classify emails (sync)", value=True, key="ai_classify_ai",
-                      help="During sync, the AI decides if each email is a real application and "
-                           "advances its status using thread memory — recovers applications the "
-                           "deterministic filter missed. Persisted (ai_classified), never re-run "
-                           "on incremental syncs.")
-            st.caption("Cost-safe: batched, persisted to the DB, deterministic fallback.")
-        ai.set_provider(provider, api_key or None, st.session_state.get("ai_model"))
-        if ai.available():
-            st.caption(f"🟢 {ai.provider_label()}")
-        else:
-            st.caption("⚠️ AI not ready — deterministic mode. Add a free key or install Ollama.")
-        t1, t2 = st.columns(2)
-        if t1.button("🧪 Test AI", width="stretch",
-                     help="Send one tiny request to confirm the key + model actually work."):
-            run_ai_test()
-            st.rerun()
-        if t2.button("🗑 Clear cache", width="stretch",
-                     help="Forget cached AI responses — use after changing your CV/data."):
-            n = ai.clear_cache()
-            st.toast(f"Cleared {n} cached AI response(s)")
-            st.rerun()
-        test = st.session_state.get("ai_test_result")
-        if test:
-            status_r, detail, label = test
-            st.caption(f"✅ AI OK — {label}" if status_r == "ok" else f"❌ AI failed — {detail[:120]}")
-
         st.header("🔎 Filters")
         upload = st.file_uploader("Upload CSV (optional)", type=["csv"], key="_upload")
         raw, source_label = resolve_source()
@@ -2987,7 +2147,6 @@ def main():
         else:
             st.caption(f"Loaded: **{source_label}**")
             df = normalize(raw)
-            ensure_fit_scores(df)
             show_noise = st.toggle("Show Filtered Out Noise / Spam", value=False)
             applied_only = df[df["current_status"] != "Saved / Planning"]
             valid = applied_only[applied_only["is_valid"]].copy()
@@ -2998,18 +2157,13 @@ def main():
             )
             noise_count = int((~df["is_valid"]).sum())
             st.caption(f"🚫 {noise_count} noise/spam row(s) "
-                       f"{'shown below' if show_noise else 'hidden'}"
-                       + (f" · {int((df['current_status'] == 'Saved / Planning').sum())} saved from discovery"
-                          if (df['current_status'] == 'Saved / Planning').any() else ""))
+                       f"{'shown below' if show_noise else 'hidden'}")
 
         if valid is not None and not valid.empty:
             search_all = st.text_input(
                 "🔍 Search (company · role · subject · JD)", "",
                 help="Filters the tracker to rows whose company, role, email subject or job "
                      "description contains the text (case-insensitive).")
-            min_fit = st.slider("Minimum CV Fit %", 0, 100, 0, step=5,
-                                help="Hide rows whose stored CV fit is below this. "
-                                     "Rows not yet scored always stay visible.")
 
             statuses_present = [s for s in STATUS_ORDER if s in valid["current_status"].unique()]
             other = sorted(set(valid["current_status"]) - set(STATUS_ORDER))
@@ -3051,42 +2205,28 @@ def main():
             selected_job_types = selected_industries = None
 
         st.divider()
-        render_cv_editor()
-
-        st.divider()
-        render_ipad_section()
 
     noise_view = None
-    saved_df = None
     if raw is not None:
         df_all = normalize(raw)
         if show_noise:
             noise_view = df_all[~df_all["is_valid"]].copy()
-        saved_df = df_all[(df_all["is_valid"]) & (df_all["current_status"] == "Saved / Planning")].copy()
 
     if raw is None or valid is None or valid.empty:
         if raw is None:
             header_cap.caption("Personal analytics for your job hunt — connect your Gmail to get "
                                "started. Everything runs from this browser.")
-        elif saved_df is not None and not saved_df.empty:
-            header_cap.caption(f"Personal analytics for your job hunt — {len(saved_df)} saved "
-                               "role(s) from Live Matches, no applications sent yet.")
         else:
-            header_cap.caption("Personal analytics for your job hunt — no valid applications yet. "
-                               "Sync Gmail or add roles from the Live Matches tab.")
-        tab1, tab2 = st.tabs(["📊 My Applications", "🌐 Live Job Matches"])
-        with tab1:
-            if show_noise and noise_view is not None and not noise_view.empty:
-                render_noise_editor(noise_view)
-            if raw is None:
-                st.info("No data yet — hit **▶ Sync Gmail Now** in the sidebar.")
-            else:
-                st.info("No valid applications yet — hit **▶ Sync Gmail Now** (toggle "
-                        "**Force Full Re-sync** to re-classify the full mailbox), or turn on "
-                        "**Show Filtered Out Noise / Spam** to inspect and recover what was dropped.")
-                render_saved_pipeline(saved_df)
-        with tab2:
-            render_discovery_tab()
+            header_cap.caption("Personal analytics for your job hunt — no valid applications yet.")
+        if show_noise and noise_view is not None and not noise_view.empty:
+            render_noise_editor(noise_view)
+        if raw is None:
+            st.info("No data yet — hit **▶ Sync Gmail Now** in the sidebar.")
+        else:
+            st.info("No valid applications yet — hit **▶ Sync Gmail Now** (toggle "
+                    "**Force Full Re-sync** to re-classify the full mailbox), or turn on "
+                    "**Show Filtered Out Noise / Spam** to inspect and recover what was dropped.")
+        render_reports(stale_count=0)
         return
 
     view = valid.copy()
@@ -3113,24 +2253,15 @@ def main():
         hay = (view["company_name"].fillna("") + " " + view["role_title"].fillna("") + " "
                + view["latest_subject"].fillna("") + " " + view["job_description_snippet"].fillna(""))
         view = view[hay.str.lower().str.contains(search_q, regex=False)]
-    if min_fit > 0:
-        view = view[(view["fit_score"].isna()) | (view["fit_score"] >= min_fit)]
 
     view = view.sort_values("application_date", ascending=False)
 
     header_cap.caption(f"Personal analytics for your job hunt — **{len(valid)}** valid "
-                       f"applications · **{len(saved_df) if saved_df is not None else 0}** saved "
-                       f"· **{len(view)}** shown. Live Malaysian market discovery + CV-tailored "
-                       "fit scoring. Everything runs from this browser.")
+                       f"applications · **{len(view)}** shown. Everything runs from this browser.")
 
-    tab1, tab2 = st.tabs(["📊 My Applications", "🌐 Live Job Matches"])
-    with tab1:
-        if show_noise and noise_view is not None and not noise_view.empty:
-            render_noise_editor(noise_view)
-        render_applications_tab(valid, view, stale_count=int(valid.attrs.get("stale_count", 0) or 0))
-        render_saved_pipeline(saved_df)
-    with tab2:
-        render_discovery_tab()
+    if show_noise and noise_view is not None and not noise_view.empty:
+        render_noise_editor(noise_view)
+    render_applications_tab(valid, view, stale_count=int(valid.attrs.get("stale_count", 0) or 0))
 
 
 if __name__ == "__main__":

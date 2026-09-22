@@ -2,7 +2,7 @@
 REM ============================================================
 REM  Job Application Suite - test runner
 REM  Runs the hermetic unit + headless dashboard smoke tests.
-REM  No personal data is touched (temporary DB/CV/AI cache).
+REM  No personal data is touched (temporary DB/CV).
 REM ============================================================
 cd /d "%~dp0"
 echo.

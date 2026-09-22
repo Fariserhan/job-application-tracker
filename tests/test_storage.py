@@ -135,69 +135,6 @@ class UpsertTests(StorageTestCase):
         self.assertEqual(self._row()["company_name"], "Prudential")
 
 
-class FitTests(StorageTestCase):
-    def test_save_fit_sanitizes_and_stamps_rule(self):
-        storage.upsert_application(self._record())
-        updated = storage.save_fit_results({
-            "T1": {"fit_score": "77.5", "matched_skills": ["Python", None, "SQL"],
-                   "missing_skills": 5, "actionable_improvements": ["do x"]},
-            "MISSING": {"fit_score": 50},
-        }, cv_sig="sig1")
-        self.assertEqual(updated, 1)
-        row = self._row()
-        self.assertEqual(row["fit_score"], 77.5)
-        self.assertEqual(row["fit_source"], "rule")
-        self.assertEqual(row["fit_cv_sig"], "sig1")
-        self.assertIn("Python", row["matched_skills"])
-
-    def test_save_fit_skips_unusable_scores(self):
-        storage.upsert_application(self._record())
-        updated = storage.save_fit_results({"T1": {"fit_score": "not a number"}})
-        self.assertEqual(updated, 0)
-        self.assertIsNone(self._row()["fit_score"])
-
-    def test_mark_fit_ai(self):
-        storage.upsert_application(self._record())
-        storage.mark_fit_ai({"T1": {"fit_score": 120, "matched_skills": ["Python"],
-                                    "missing_skills": [], "actionable_improvements": []}},
-                            cv_sig="sig2")
-        row = self._row()
-        self.assertEqual(row["fit_score"], 100.0)
-        self.assertEqual(row["fit_source"], "ai")
-        self.assertEqual(row["fit_cv_sig"], "sig2")
-
-    def test_get_valid_rows_for_fit_includes_cv_columns(self):
-        storage.upsert_application(self._record())
-        storage.save_fit_results({"T1": {"fit_score": 50}}, cv_sig="abc")
-        rows = storage.get_valid_rows_for_fit()
-        self.assertEqual(rows[0]["fit_cv_sig"], "abc")
-        self.assertEqual(rows[0]["fit_source"], "rule")
-
-
-class AiClassificationTests(StorageTestCase):
-    def test_valid_status_only(self):
-        storage.upsert_application(self._record())
-        storage.apply_ai_classification({
-            "T1": {"is_valid": True, "company": "Acme", "role": "Data Analyst",
-                   "status": "Not A Real Status", "reason": "test"},
-        })
-        self.assertEqual(self._row()["current_status"], "Applied")
-        self.assertEqual(self._row()["ai_classified"], 1)
-
-    def test_manual_recovery_not_invalidated_by_ai(self):
-        storage.upsert_application(self._record(is_valid=False,
-                                                filter_reason="no positive affirmation"))
-        storage.set_valid("T1", True, "manual recovery")
-        storage.apply_ai_classification({"T1": {"is_valid": False, "reason": "looks noisy"}})
-        self.assertEqual(self._row()["is_valid"], 1)
-
-    def test_platform_names_ignored(self):
-        storage.upsert_application(self._record(company_name="Prudential"))
-        storage.apply_ai_classification({"T1": {"company": "JobStreet", "role": "hi"}})
-        row = self._row()
-        self.assertEqual(row["company_name"], "Prudential")
-        self.assertEqual(row["role_title"], "Data Analyst")
-
 
 class BodyCacheTests(StorageTestCase):
     def test_roundtrip(self):
@@ -223,12 +160,14 @@ class BodyCacheTests(StorageTestCase):
 
 class ExportBackupTests(StorageTestCase):
     def test_export_csv_with_extra_columns(self):
+        """Export must include the classifier columns and stay readable."""
         storage.upsert_application(self._record())
-        storage.export_csv()
-        with open(storage.CSV_PATH, encoding="utf-8-sig") as fh:
-            header = fh.readline()
-        self.assertIn("company_name", header)
-        self.assertIn("fit_source", header)
+        path = os.path.join(self.tmp, "export.csv")
+        storage.export_csv(path)
+        with open(path, encoding="utf-8-sig") as fh:
+            header = fh.readline().strip().split(",")
+        for col in ("job_type", "seniority_level", "industry", "filter_reason"):
+            self.assertIn(col, header, col)
 
     def test_backup_all_writes_db(self):
         storage.upsert_application(self._record())
@@ -277,28 +216,3 @@ class LifecycleTests(StorageTestCase):
         self.assertFalse(storage.update_company_role("T1", "", "Risk Analyst"))
         self.assertFalse(storage.update_company_role("MISSING", "X", "Y"))
 
-    def test_add_manual_application_and_tracked_keys(self):
-        job = {"job_key": "abc123", "title": "Risk Analyst", "company": "Acme",
-               "source": "LinkedIn", "url": "https://example.com/x",
-               "description": "jd", "fit_score": 55.0,
-               "matched_skills": ["Python"], "missing_skills": ["SAS"]}
-        self.assertEqual(storage.add_manual_application(job), "added")
-        self.assertEqual(storage.add_manual_application(job), "exists")
-        self.assertIn("abc123", storage.get_tracked_discovery_keys())
-        rows = [r for r in storage.load_discovered()]
-        self.assertEqual(rows, [])
-
-    def test_discovered_roundtrip(self):
-        jobs = [{"job_key": "k1", "title": "Data Analyst", "company": "Acme",
-                 "source": "LinkedIn", "url": "https://x", "description": "d",
-                 "fit_score": 70.0, "matched_skills": [], "missing_skills": []}]
-        self.assertEqual(storage.save_discovered(jobs), 1)
-        got = storage.load_discovered()
-        self.assertEqual(len(got), 1)
-        self.assertEqual(got[0]["job_key"], "k1")
-        storage.clear_discovered()
-        self.assertEqual(storage.load_discovered(), [])
-
-
-if __name__ == "__main__":
-    unittest.main()
