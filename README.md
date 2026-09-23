@@ -53,6 +53,40 @@ Data files (created on first run, never committed):
 2. Double-click `launch_dashboard.bat`
 3. Click **Sync Gmail now**
 
+## Data architecture (star schema)
+
+Grain (what one row means):
+
+| Table | Grain |
+|---|---|
+| `fact_application` | one row per job application |
+| `fact_status_event` | one row per status change (append-only event log) |
+| `fact_application_skill` | one row per application x skill (bridge) |
+
+```
+  dim_date (marked date table)   dim_company   dim_platform   dim_status
+          \                          |              |             /
+           \                         |              |            /
+            +-----------------> fact_application <--------------+
+                                     |
+          dim_role_family            |          dim_skill
+          dim_seniority              v
+          dim_industry        fact_status_event
+          dim_job_type                |
+                                      v
+                               fact_application_skill
+
+  reporting view: vw_application_analysis (denormalised, safe to import into
+  Power BI / Tableau in one step)
+```
+
+**Four surfaces, one metric definition:** `warehouse_queries.py` computes every metric
+once in SQL (CTEs, window functions). The Streamlit dashboard and the Excel exports read
+those results; `bi_export.py` ships the matching DAX measures and Tableau calculated
+fields written against the same tables and validated to agree - so the dashboard, the
+workbook, the Power BI report and the Tableau view cannot drift apart. Unknown values
+stay NULL everywhere (never zero-filled).
+
 ## Tests
 
 ```bash
