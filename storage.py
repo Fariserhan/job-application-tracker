@@ -194,7 +194,7 @@ def init_db():
 
 
 def _migrate_processed_messages(conn):
-    """Add the body cache column to databases created before deep re-parsing existed.
+    """Add message cache columns to older databases.
 
     Storing the sanitised body means a Force Full Re-sync can re-classify every old email
     with the current filter rules without re-downloading anything from Gmail.
@@ -202,6 +202,8 @@ def _migrate_processed_messages(conn):
     cols = {row["name"] for row in conn.execute("PRAGMA table_info(processed_messages)")}
     if "body_text" not in cols:
         conn.execute("ALTER TABLE processed_messages ADD COLUMN body_text TEXT DEFAULT ''")
+    if "message_date" not in cols:
+        conn.execute("ALTER TABLE processed_messages ADD COLUMN message_date TEXT DEFAULT ''")
 
 
 def upsert_application(record: dict) -> str:
@@ -399,8 +401,9 @@ def get_processed_bodies(message_ids: list) -> dict:
     return {r["message_id"]: r["body_text"] for r in rows}
 
 
-def mark_messages_processed(pairs: list, bodies: dict | None = None):
-    """pairs: [(message_id, thread_id), ...] — optionally persist the fetched bodies.
+def mark_messages_processed(pairs: list, bodies: dict | None = None,
+                            dates: dict | None = None):
+    """pairs: [(message_id, thread_id), ...] — optionally persist bodies and dates.
 
     The body cache is bounded (8 KB/message) and only updated when a non-empty body is
     supplied, so a failed fetch can never blank a previously stored body.
@@ -408,16 +411,20 @@ def mark_messages_processed(pairs: list, bodies: dict | None = None):
     if not pairs:
         return
     bodies = bodies or {}
+    dates = dates or {}
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with _connect() as conn:
         conn.executemany(
-            "INSERT INTO processed_messages (message_id, thread_id, processed_at, body_text) "
-            "VALUES (?, ?, ?, ?) "
+            "INSERT INTO processed_messages (message_id, thread_id, processed_at, body_text, message_date) "
+            "VALUES (?, ?, ?, ?, ?) "
             "ON CONFLICT(message_id) DO UPDATE SET "
             "thread_id = excluded.thread_id, "
             "body_text = CASE WHEN excluded.body_text != '' THEN excluded.body_text "
-            "ELSE processed_messages.body_text END",
-            [(mid, tid, now, str(bodies.get(mid) or "")[:8000]) for mid, tid in pairs],
+            "ELSE processed_messages.body_text END, "
+            "message_date = CASE WHEN excluded.message_date != '' THEN excluded.message_date "
+            "ELSE processed_messages.message_date END",
+            [(mid, tid, now, str(bodies.get(mid) or "")[:8000], dates.get(mid) or "")
+             for mid, tid in pairs],
         )
 
 

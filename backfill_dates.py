@@ -4,18 +4,17 @@ The parser stamped `last_updated` with the message's own date, so almost every t
 looks "updated" on the day it was applied and days-waiting/response-time read as zero.
 Gmail is the authority: a thread's last message date is when it genuinely last moved.
 
-This reads the cached message bodies in `processed_messages` (already downloaded — no
-network calls) via the message dates recorded there, falling back to the thread's own
-messages. Rows whose only message IS the application keep their application date.
+This reads real message dates cached in `processed_messages` (no network calls).
+Rows whose only dated message IS the application keep their application date.
 
 Dry run:  venv\\Scripts\\python.exe backfill_dates.py
 Apply:    venv\\Scripts\\python\\backfill_dates.py --apply
 """
 import argparse
 import os
-import shutil
 import sqlite3
 import sys
+from contextlib import closing
 from datetime import datetime
 
 DB = "applications.db"
@@ -27,23 +26,19 @@ def _connect():
     return conn
 
 
-def _candidate_dates(conn) -> dict:
-    """Best-known 'thread last moved' date, per thread_id.
+def _has_message_dates(conn) -> bool:
+    """False on databases that have not been synced since message dates were added."""
+    return any(row["name"] == "message_date"
+               for row in conn.execute("PRAGMA table_info(processed_messages)"))
 
-    Sources, in priority order:
-      1. A later status_history event (a real employer response was recorded).
-      2. The newest message date available for the thread from processed_messages.
-    """
-    latest = {}
-    try:
-        for row in conn.execute(
-                "SELECT thread_id, MAX(changed_at) AS ts FROM status_history "
-                "WHERE changed_at IS NOT NULL GROUP BY thread_id"):
-            if row["ts"]:
-                latest[row["thread_id"]] = str(row["ts"])[:19]
-    except sqlite3.Error:
-        pass
-    return latest
+
+def _candidate_dates(conn) -> dict:
+    """Newest real Gmail message date per thread_id."""
+    if not _has_message_dates(conn):
+        return {}
+    return {row["thread_id"]: row["ts"] for row in conn.execute(
+        "SELECT thread_id, MAX(message_date) AS ts FROM processed_messages "
+        "WHERE message_date IS NOT NULL AND message_date != '' GROUP BY thread_id")}
 
 
 def plan(conn) -> list:
@@ -87,6 +82,17 @@ def main():
     conn = _connect()
     changes = plan(conn)
     print(f"{len(changes)} row(s) have a later real event than their last_updated stamp")
+    if _has_message_dates(conn):
+        missing = conn.execute(
+            "SELECT COUNT(*) FROM applications a WHERE COALESCE(a.is_valid,1)=1 "
+            "AND NOT EXISTS (SELECT 1 FROM processed_messages p WHERE p.thread_id=a.thread_id "
+            "AND p.message_date IS NOT NULL AND p.message_date != '')"
+        ).fetchone()[0]
+        print(f"{missing} thread(s) skipped: no cached message date yet "
+              "(run a Force Full Re-sync to fill them in)")
+    else:
+        print("no message dates cached yet — run a sync (Force Full Re-sync for old mail) "
+              "first, then re-run this")
     for c in changes[:10]:
         print(f"  {c['company'][:28]:28s} {c['status']:16s} "
               f"{c['old_last_updated'][:10]} -> {c['new_last_updated'][:10]} (+{c['days']}d)")
@@ -99,7 +105,12 @@ def main():
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup_dir = os.path.join("backups", f"date-repair-{stamp}")
     os.makedirs(backup_dir, exist_ok=True)
-    shutil.copy(DB, os.path.join(backup_dir, "applications.db"))
+    try:
+        with closing(sqlite3.connect(os.path.join(backup_dir, "applications.db"))) as dest_conn:
+            conn.backup(dest_conn)
+    except Exception:
+        conn.close()  # never leave the live database locked after a failed backup
+        raise
     print(f"\nbackup: {backup_dir}")
 
     for c in changes:

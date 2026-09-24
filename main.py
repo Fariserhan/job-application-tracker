@@ -1,6 +1,8 @@
 import argparse
 import sys
 import time
+from datetime import datetime
+from email.utils import parsedate_to_datetime
 
 import auth
 import enricher
@@ -21,6 +23,20 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
+
+def _message_date(meta: dict) -> str:
+    """The email's own date, or '' when Gmail gave none.
+
+    The parser falls back to today's date for undated mail; that must never be cached as
+    a message date, or the date repair would stamp sync time onto historic threads.
+    """
+    ts = meta.get("internal_date") or 0
+    if ts:
+        return datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d")
+    try:
+        return parsedate_to_datetime(meta.get("date_header", "")).strftime("%Y-%m-%d")
+    except (TypeError, ValueError):
+        return ""
 
 
 def run(force_full: bool = False, notify=None) -> dict:
@@ -132,6 +148,7 @@ def run(force_full: bool = False, notify=None) -> dict:
         pending = []
         processed_pairs = []
         parsed_now = {}
+        dates = {}
         for meta, record in stage1:
             body = bodies.get(meta["id"])
             wants_body = record["needs_body"] or meta["id"] in deep_set
@@ -139,8 +156,12 @@ def run(force_full: bool = False, notify=None) -> dict:
                 # Only spend the optional LLM extraction on newly downloaded mail.
                 record = parser.parse_message(meta, body_text=body,
                                               allow_llm=meta["id"] in fresh_set)
+                # Record the date even for cached bodies so older messages get a
+                # message_date on their next deep re-parse; the body only needs storing
+                # when it was newly downloaded.
+                processed_pairs.append((meta["id"], meta["thread_id"]))
+                dates[meta["id"]] = _message_date(meta)
                 if meta["id"] in fresh_set or meta["id"] in refetched_bodies:
-                    processed_pairs.append((meta["id"], meta["thread_id"]))
                     parsed_now[meta["id"]] = body
             elif record["needs_body"]:
                 # Body fetch failed (new message) — leave the row for the next sync.
@@ -148,6 +169,7 @@ def run(force_full: bool = False, notify=None) -> dict:
                 pass
             else:
                 processed_pairs.append((meta["id"], meta["thread_id"]))
+                dates[meta["id"]] = _message_date(meta)
 
             existing = existing_map.get(record["thread_id"])
             already_enriched = existing and existing["job_description_snippet"]
@@ -160,7 +182,7 @@ def run(force_full: bool = False, notify=None) -> dict:
             elif result == "inserted" and record["job_url"] and not already_enriched:
                 pending.append((record["thread_id"], record["job_url"]))
 
-        storage.mark_messages_processed(processed_pairs, bodies=parsed_now)
+        storage.mark_messages_processed(processed_pairs, bodies=parsed_now, dates=dates)
         summary["bodies_skipped"] = len(skipped_body_ids)
 
         if pending:

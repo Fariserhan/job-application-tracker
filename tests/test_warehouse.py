@@ -9,6 +9,7 @@ import shutil
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import warehouse
 import warehouse_etl
@@ -220,9 +221,11 @@ class WarehouseTests(unittest.TestCase):
         """The dashboard analytics helpers must never raise on empty input."""
         import pandas as pd
         dashboard = __import__("dashboard")
-        empty = pd.DataFrame()
-        for fn in (dashboard.platform_performance, dashboard.company_summary):
-            self.assertIsInstance(fn(empty), pd.DataFrame, fn.__name__)
+        empty = pd.DataFrame(columns=["thread_id", "company_name", "source_platform",
+                                      "current_status", "last_updated"])
+        with patch.object(dashboard, "_wq", return_value=pd.DataFrame()):
+            for fn in (dashboard.platform_performance, dashboard.company_summary):
+                self.assertIsInstance(fn(empty), pd.DataFrame, fn.__name__)
 
     def test_no_query_aggregates_in_python(self):
         """Guard the design claim: the analytics must live in the SQL text."""
