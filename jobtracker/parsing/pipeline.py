@@ -2,7 +2,7 @@
 
 Two passes, so Gmail quota is only spent where it matters:
 
-* metadata pass (subject, sender, snippet) decides whether the body is worth fetching —
+* metadata pass (subject, sender, snippet) decides whether the body is worth fetching;
   hard-blacklisted mail never costs a body download;
 * body pass re-classifies with the full first-message text, finds the posting link and
   recovers the employer / role that generic subjects hide.
@@ -91,7 +91,7 @@ class ParsedMessage:
 
 
 def message_date(meta: dict) -> str:
-    """The email's own local date, or '' (never 'today' — that would fake history)."""
+    """The email's own local date, or '' (never 'today', because that would fake history)."""
     ts = meta.get("internal_date") or 0
     if ts:
         return datetime.fromtimestamp(int(ts) / 1000).strftime("%Y-%m-%d")
@@ -231,7 +231,7 @@ def finalize(record: ParsedMessage, snippet: str = "") -> ParsedMessage:
     if not record.company_name:
         record.company_name = company_fallback(record.sender)
     if not record.role_title:
-        # Only fall back to the subject when it is a bare job title — never "Next steps",
+        # Only fall back to the subject when it is a bare job title. Never use "Next steps",
         # "Following up" or a notification sentence.
         subject = record.subject
         record.role_title = subject if _good_role(subject) and len(subject) <= 80 else ""

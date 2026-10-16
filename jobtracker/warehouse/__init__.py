@@ -1,7 +1,7 @@
 """Analytics warehouse: DuckDB star schema built from the dbt models.
 
 ``build(settings)`` = extract-load (SQLite -> ``raw``) + run every dbt model + run the data
-tests, into a fresh file that atomically replaces the live warehouse — readers never see a
+tests, into a fresh file that atomically replaces the live warehouse. Readers never see a
 half-built model, and a failed build leaves the previous warehouse untouched.
 """
 from __future__ import annotations
@@ -53,7 +53,7 @@ def build(settings) -> dict:
         try:
             os.replace(staging, target)
             break
-        except PermissionError:  # Windows: a reader still holds the file — retry briefly
+        except PermissionError:  # Windows: a reader still holds the file, so retry briefly
             if attempt == 5:
                 raise
             time.sleep(0.5 * (attempt + 1))
@@ -64,7 +64,7 @@ def build(settings) -> dict:
 def connect(settings, read_only: bool = True):
     path = Path(settings.warehouse_path)
     if not path.exists():
-        raise FileNotFoundError(f"No warehouse at {path} — run a sync or `jobtracker build`.")
+        raise FileNotFoundError(f"No warehouse at {path}. Run a sync or `jobtracker build`.")
     con = duckdb.connect(str(path), read_only=read_only)
     try:
         yield con

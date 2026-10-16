@@ -1,4 +1,4 @@
-"""Published hiring benchmarks — the single source the SQL, DAX and Tableau layers read.
+"""Published hiring benchmarks: the single source the SQL, DAX and Tableau layers read.
 
 Every surface that compares the tracker to the market (dashboard KPI bands, the funnel
 benchmark chart, the DAX `Response Band` measure, the Tableau calculated field, the Excel
@@ -7,8 +7,8 @@ changed in one place.
 
 Caveat kept visible on purpose: these are aggregate figures from public job-search
 research (mixed seniority, mostly cold applications). One person's pipeline is a small
-sample, so comparisons are indicative — the metric layer attaches Wilson confidence
-intervals to every rate for exactly that reason.
+sample, so comparisons are indicative. The metric layer attaches Wilson confidence
+intervals to every rate for that reason.
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ WELL_TARGETED_INTERVIEW_RATE_PCT = (5.0, 10.0)
 
 # The published "100 applications" funnel, per stage. There is deliberately no range for
 # "Employer responded": v1 quoted 2-3 replies per 100, which is fewer than the 5-10
-# interviews below — impossible, since every interview is a reply. With no consistent
+# interviews below. That is impossible, since every interview is a reply. With no consistent
 # published figure for "any reply", that stage is shown without a benchmark.
 FUNNEL_PER_100 = {
     "Interview": (5.0, 10.0),

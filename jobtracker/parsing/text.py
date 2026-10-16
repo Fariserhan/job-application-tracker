@@ -32,7 +32,7 @@ def first_message(body_text: str) -> str:
     """The new message only, line structure kept: quoted replies, signatures and URLs cut.
 
     Quoted previous messages leak old statuses into classification (a follow-up quoting an
-    old rejection would read as Rejected) — cutting at the first quote marker keeps the
+    old rejection would read as Rejected). Cutting at the first quote marker keeps the
     verdict about the new message.
     """
     text = body_text or ""

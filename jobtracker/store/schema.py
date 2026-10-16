@@ -5,9 +5,9 @@ Nothing a user typed (notes, manual overrides) is ever dropped.
 
 Tables
 ------
-applications       one row per application (Gmail thread or manual entry) — current state
+applications       one row per application (Gmail thread or manual entry): current state
 status_events      append-only log of every status change, dated by the EMAIL that caused
-                   it (not by when the sync ran) — the source of funnel depth and timings
+                   it (not by when the sync ran); the source of funnel depth and timings
 processed_messages one row per Gmail message seen: sanitised body cache + parse verdict
 llm_calls          cache + cost ledger for the optional Claude fallback
 """

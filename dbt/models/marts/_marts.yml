@@ -5,7 +5,7 @@ models:
     description: >
       Grain: one row per application. Funnel flags use the furthest stage ever reached, so a
       rejection after an interview still counts as an interview. Timing columns are NULL when
-      the date is unknown — never zero-filled.
+      the date is unknown. They are never zero-filled.
     columns:
       - name: application_id
         tests: [unique, not_null]
@@ -49,7 +49,7 @@ models:
           - relationships:
               arguments: {to: ref('fct_applications'), field: application_id}
   - name: dim_date
-    description: Marked date table — contiguous days from the first application to today.
+    description: Marked date table. Contiguous days from the first application to today.
     columns:
       - name: date_day
         tests: [unique, not_null]

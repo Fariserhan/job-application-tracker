@@ -2,14 +2,14 @@
 
 Merge rules (one thread = one application, fed by many emails):
 
-* **validity is an OR across the thread** — one confirming email proves the application;
+* **validity is an OR across the thread**: one confirming email proves the application;
   a later marketing-looking email can never erase it. Manual verdicts are sticky.
-* **status only moves on newer evidence** — an email older than the thread's latest status
+* **status only moves on newer evidence**: an email older than the thread's latest status
   event never rolls it back, and a generic "your application…" email never demotes an
   interview to "Applied". Every change is written to ``status_events`` dated by the email.
-* **identity only improves** — a platform placeholder ("JobStreet", "Workday") never
+* **identity only improves**: a platform placeholder ("JobStreet", "Workday") never
   replaces a real employer; a junk fragment never replaces a real role title.
-* **dates mean something** — ``application_date`` is the earliest message; ``last_updated``
+* **dates mean something**: ``application_date`` is the earliest message; ``last_updated``
   advances only when a message actually changes the record, so "days waiting" is real.
 """
 from __future__ import annotations
@@ -359,7 +359,7 @@ class Repository:
             return cur.rowcount > 0
 
     def set_valid(self, thread_id: str, is_valid: bool, reason: str = "") -> bool:
-        """Manual noise verdict — sticky in both directions until changed again."""
+        """Manual noise verdict. Sticky in both directions until changed again."""
         reason = (reason or "").strip() or ("manual recovery" if is_valid else "manual: marked as noise")
         if not reason.startswith("manual"):
             reason = f"manual: {reason}"

@@ -17,14 +17,14 @@ def get_credentials(credentials_path: Path, token_path: Path):
         try:
             creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
         except (ValueError, OSError):
-            creds = None  # corrupt / partial token file — fall through to a fresh flow
+            creds = None  # corrupt / partial token file: fall through to a fresh flow
     if creds and creds.valid:
         return creds
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
         except Exception:
-            creds = None  # refresh token revoked or expired — re-authenticate
+            creds = None  # refresh token revoked or expired: re-authenticate
     if not creds or not creds.valid:
         if not credentials_path.exists():
             raise FileNotFoundError(

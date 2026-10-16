@@ -58,7 +58,7 @@ select
     m.max_stage_reached >= 4                                          as reached_offer,
     a.current_status = 'Rejected'                                     as is_rejected,
     a.current_status = 'Ghosted'                                      as is_ghosted,
-    -- timings (NULL when unknown — never zero-filled)
+    -- timings (NULL when unknown, never zero-filled)
     case when m.first_response_on >= a.applied_date
          then date_diff('day', a.applied_date, m.first_response_on) end as days_to_response,
     case when m.interview_on >= a.applied_date
