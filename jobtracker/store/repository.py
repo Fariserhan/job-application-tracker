@@ -403,6 +403,28 @@ class Repository:
                                 "manual", note="recovered from the noise filter")
         return True
 
+    def review_queue(self, threshold: float = 0.75, limit: int = 50) -> list[dict]:
+        """Applications the rules were unsure about and nobody has checked yet."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT thread_id, company_name, role_title, latest_subject, source_platform, "
+                "application_date, current_status, parse_confidence, gmail_link "
+                "FROM applications WHERE is_valid = 1 AND COALESCE(origin, '') <> 'manual' "
+                "AND parse_confidence IS NOT NULL AND parse_confidence < ? "
+                "AND COALESCE(filter_reason, '') NOT LIKE 'manual%' "
+                "ORDER BY parse_confidence, application_date DESC LIMIT ?",
+                (threshold, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    def noise(self, limit: int = 300) -> list[dict]:
+        """Threads the filter judged not to be application mail, newest first."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT thread_id, application_date, latest_subject, company_name, "
+                "source_platform, filter_reason, gmail_link FROM applications "
+                "WHERE is_valid = 0 ORDER BY application_date DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
     def add_manual_application(self, company: str, role: str, platform: str = "Direct ATS",
                                applied_on: str | None = None, job_url: str = "",
                                notes: str = "", status: str = domain.APPLIED) -> str:
@@ -465,6 +487,17 @@ class Repository:
             row = conn.execute("SELECT * FROM applications WHERE thread_id=?",
                                (thread_id,)).fetchone()
         return dict(row) if row else None
+
+    def changes_since(self, since: str, limit: int = 500) -> list[dict]:
+        """Status events recorded at or after ``since`` (``YYYY-MM-DD HH:MM:SS``, local), newest
+        first, with the application's company and role: what the last sync (and anything done
+        by hand after it) changed. An event without a previous status is a new application."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT e.*, a.company_name, a.role_title FROM status_events e "
+                "JOIN applications a USING (thread_id) WHERE a.is_valid = 1 AND e.recorded_at >= ? "
+                "ORDER BY e.recorded_at DESC, e.event_id DESC LIMIT ?", (since, limit)).fetchall()
+        return [dict(r) for r in rows]
 
     def events(self, thread_id: str | None = None, limit: int = 500) -> list[dict]:
         with self.connect() as conn:

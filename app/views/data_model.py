@@ -1,4 +1,4 @@
-"""Data & model — under the hood: architecture, real dbt lineage, star schema, data tests,
+"""Data & model: under the hood: architecture, real dbt lineage, star schema, data tests,
 coverage, the parser's audit trail, the metric SQL itself, and the BI pack."""
 from __future__ import annotations
 
@@ -18,11 +18,11 @@ counts = manifest.get("counts", {}) or {}
 
 ui.lede("Data & model", [
     ("Every number is computed once, in SQL", "em"),
-    (f" — {len(graph.models)} dbt models, {len(tests)} data tests, "
+    (f": {len(graph.models)} dbt models, {len(tests)} data tests, "
      f"{'all passing' if not failing else f'{failing} failing'}.", ""),
-], "How a Gmail message becomes a figure on this page: a deterministic parser, an "
+], "For the technically curious. How a Gmail message becomes a number in this app: a deterministic parser, an "
    "event-sourced store, dbt models over a DuckDB star schema, and one metric layer that the "
-   "app, the Excel workbook, Power BI and Tableau all read from — so the four can never drift.")
+   "app, the Excel workbook, Power BI and Tableau all read from, so the four can never drift.")
 
 ui.flow([
     ("Gmail", "Read-only API; batched, quota-aware fetches with an adaptive pacer."),
@@ -32,7 +32,7 @@ ui.flow([
     ("dbt models", f"{len(graph.models)} models and {len(tests)} singular data tests over "
                    "the raw extract."),
     ("Star schema", "DuckDB: fct_applications, fct_status_events and their dimensions."),
-    ("Four surfaces", "This app, the Excel workbook, Power BI (DAX) and Tableau — one "
+    ("Four surfaces", "This app, the Excel workbook, Power BI (DAX) and Tableau: one "
                       "metric definition each."),
 ])
 
@@ -44,7 +44,7 @@ with ui.section(1, "Lineage",
                 "dimensions · solid blue: facts."):
     st.graphviz_chart(lineage.lineage_dot(graph), width="stretch")
     ui.source(f"dbt/models · {len(graph.seeds)} seeds · built "
-              f"{ui.esc(str(manifest.get('built_at', '—')))} in {manifest.get('seconds', '—')} s.")
+              f"{ui.esc(str(manifest.get('built_at', '-')))} in {manifest.get('seconds', '-')} s.")
 
 # ---------------------------------------------------------------- schema + tests
 with ui.section(2, "Model & tests",
@@ -95,7 +95,7 @@ NAMES = [n for n in SQL if n != "segment_performance"] + ["segment_performance",
 with ui.section(4, "Metric layer",
                 "Read the SQL behind any number",
                 "Each metric is one statement over the marts, composed with the same filtered "
-                "base CTE — CTEs, window functions, Wilson intervals and Kaplan–Meier in plain "
+                "base CTE: CTEs, window functions, Wilson intervals and Kaplan–Meier in plain "
                 "SQL. Pick one to see it and its live result under the current filters."):
     pick = st.selectbox("Metric", NAMES, index=NAMES.index("funnel"), key="sql_pick")
     left, right = st.columns([7, 5], gap="large")
@@ -111,8 +111,8 @@ with ui.section(4, "Metric layer",
 with ui.section(5, "BI pack",
                 "The same numbers in Excel, Power BI and Tableau",
                 "Generated from the same metric definitions and benchmarks, with the same "
-                "palette — so the workbook, the DAX measures and the Tableau fields agree with "
-                "this page by construction."):
+                "palette, so the workbook, the DAX measures and the Tableau fields always "
+                "agree with this page."):
     try:
         from jobtracker import bi
     except Exception as exc:  # the pack is optional for the app

@@ -233,3 +233,14 @@ def test_undo_last_status_restores_and_removes_the_mistake(repo):
     assert row["last_updated"] == "2026-09-01"
     # the mistaken event is gone, so the funnel never counts the offer
     assert [e["to_status"] for e in repo.events(tid)] == [domain.APPLIED]
+
+
+def test_review_queue_and_noise_lists(repo):
+    apply(repo)
+    with repo.connect() as conn:
+        conn.execute("UPDATE applications SET parse_confidence = 0.55 WHERE thread_id = 't1'")
+    assert [r["thread_id"] for r in repo.review_queue()] == ["t1"]
+    repo.set_valid("t1", True, "manual: confirmed in review")
+    assert repo.review_queue() == []  # checked once, never asked again
+    repo.set_valid("t1", False)
+    assert [r["thread_id"] for r in repo.noise()] == ["t1"]

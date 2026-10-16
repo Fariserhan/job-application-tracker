@@ -17,6 +17,7 @@ from .gmail.client import MailSource, after_date
 from .parsing.llm import LLMAssist
 from .parsing.pipeline import ParsedMessage, parse_message
 from .store import Repository
+from .store.schema import now
 
 log = logging.getLogger(__name__)
 
@@ -66,6 +67,7 @@ class SyncEngine:
 
     def run(self, full: bool = False, progress: Progress = _noop) -> SyncSummary:
         started = time.time()
+        started_at = now()  # events recorded from here on are "what this sync found"
         summary = SyncSummary(mode="full re-parse" if full else "incremental")
         self.repo.init()
         state = self.repo.load_state()
@@ -150,7 +152,8 @@ class SyncEngine:
         summary.ghosted = self.repo.apply_ghosting(self.settings.ghost_after_days)
         state.update({"last_sync_epoch": latest or None,
                       "history_id": profile.get("historyId"),
-                      "last_sync_at": datetime.now().isoformat(timespec="seconds")})
+                      "last_sync_at": datetime.now().isoformat(timespec="seconds"),
+                      "last_sync_started": started_at})
         self.repo.save_state(state)
 
         if self.build_warehouse:
