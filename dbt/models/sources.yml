@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Extract of the operational SQLite store (applications.db), loaded unchanged into the
+      DuckDB `raw` schema by `jobtracker.warehouse.load`. Nothing downstream reads SQLite.
+    schema: raw
+    tables:
+      - name: applications
+        description: One row per application (Gmail thread or manual entry), current state.
+        columns:
+          - name: thread_id
+            tests: [unique, not_null]
+      - name: status_events
+        description: Append-only status changes, dated by the email that caused them.
+        columns:
+          - name: event_id
+            tests: [unique, not_null]
+      - name: processed_messages
+        description: Every Gmail message the sync has seen, with the parser's verdict.

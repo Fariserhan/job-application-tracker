@@ -1,0 +1,80 @@
+version: 2
+
+models:
+  - name: fct_applications
+    description: >
+      Grain: one row per application. Funnel flags use the furthest stage ever reached, so a
+      rejection after an interview still counts as an interview. Timing columns are NULL when
+      the date is unknown — never zero-filled.
+    columns:
+      - name: application_id
+        tests: [unique, not_null]
+      - name: company_key
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_company'), field: company_key}
+      - name: platform_key
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_platform'), field: platform_key}
+      - name: status_key
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_status'), field: status_key}
+      - name: role_family_key
+        tests:
+          - relationships: {to: ref('dim_role_family'), field: role_family_key}
+      - name: applied_date
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_day}
+      - name: max_stage_reached
+        tests:
+          - accepted_values: {values: [1, 2, 3, 4], quote: false}
+      - name: days_to_response
+        description: Days from application to the first employer response; NULL when unknown.
+  - name: fct_status_events
+    description: "Grain: one row per status change, dated by the email that caused it."
+    columns:
+      - name: event_id
+        tests: [unique, not_null]
+      - name: application_id
+        tests:
+          - relationships: {to: ref('fct_applications'), field: application_id}
+  - name: dim_date
+    description: Marked date table — contiguous days from the first application to today.
+    columns:
+      - name: date_day
+        tests: [unique, not_null]
+  - name: dim_company
+    columns:
+      - name: company_key
+        tests: [unique, not_null]
+  - name: dim_platform
+    columns:
+      - name: platform_key
+        tests: [unique, not_null]
+  - name: dim_status
+    columns:
+      - name: status_key
+        tests: [unique, not_null]
+  - name: dim_role_family
+    columns:
+      - name: role_family_key
+        tests: [unique, not_null]
+  - name: dim_industry
+    columns:
+      - name: industry_key
+        tests: [unique, not_null]
+  - name: dim_job_type
+    columns:
+      - name: job_type_key
+        tests: [unique, not_null]
+  - name: dim_seniority
+    columns:
+      - name: seniority_key
+        tests: [unique, not_null]
+  - name: rpt_application_analysis
+    description: Flat reporting view (fact + calendar attributes) for one-step BI imports.
+  - name: mart_parser_quality
+    description: Noise-filter verdicts by tier, confidence and parser (rules vs Claude fallback).

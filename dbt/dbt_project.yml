@@ -1,0 +1,32 @@
+name: jobtracker
+version: "2.0.0"
+config-version: 2
+profile: jobtracker
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  jobtracker:
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: view
+    marts:
+      +materialized: table
+
+seeds:
+  jobtracker:
+    status_stages:
+      +column_types:
+        stage_order: integer
+        is_terminal: boolean
+        is_active: boolean
+        is_employer_response: boolean
+    platform_channels:
+      +column_types:
+        is_direct: boolean

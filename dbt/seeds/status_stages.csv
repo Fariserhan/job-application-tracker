@@ -1,0 +1,9 @@
+status,funnel_stage,stage_order,is_terminal,is_active,is_employer_response,sort_order
+Saved / Planning,Pre-application,0,false,false,false,0
+Applied,Applied,1,false,true,false,1
+Assessment / OA,Assessment,2,false,true,true,2
+Interview,Interview,3,false,true,true,3
+Offer,Offer,4,true,false,true,4
+Rejected,Closed,0,true,false,true,5
+Ghosted,Closed,0,true,false,false,6
+Withdrawn,Closed,0,true,false,false,7
