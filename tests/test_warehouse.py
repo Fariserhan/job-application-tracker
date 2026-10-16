@@ -117,9 +117,12 @@ def test_funnel_is_monotonic_and_benchmarked(metrics):
     funnel = metrics.query("funnel")
     counts = funnel.applications.tolist()
     assert counts == sorted(counts, reverse=True)
-    responded = funnel.set_index("stage").loc["Employer responded"]
-    assert (responded.benchmark_per_100_lo, responded.benchmark_per_100_hi) == \
-        benchmarks.FUNNEL_PER_100["Employer responded"]
+    by_stage = funnel.set_index("stage")
+    interview = by_stage.loc["Interview"]
+    assert (interview.benchmark_per_100_lo, interview.benchmark_per_100_hi) == \
+        benchmarks.FUNNEL_PER_100["Interview"]
+    # No published "any reply" range is consistent with the interview range, so none is shown.
+    assert pd.isna(by_stage.loc["Employer responded"].benchmark_per_100_lo)
 
 
 def test_sankey_flows_conserve_applications(metrics, facts):

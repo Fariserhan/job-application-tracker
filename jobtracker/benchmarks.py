@@ -20,6 +20,11 @@ class Band:
     label: str
     lower_pct: float  # inclusive lower bound of the band, in percent
 
+# Provenance. The 1.95% job-board figure is Huntr's 1.24M-application study, where a
+# "response" means the applicant reached an interview or beyond; the 6.87% direct figure,
+# the response-rate bands and the per-100 ranges were carried over from v1 and are quoted
+# from secondary sources. Treat all of them as context, never as targets.
+
 # Response rate bands: <2% below average · 2-3% average · 3-5% good · 5%+ strong.
 RESPONSE_RATE_BANDS: tuple[Band, ...] = (
     Band("Strong", 5.0),
@@ -34,9 +39,11 @@ DIRECT_INTERVIEW_RATE_PCT = 6.87
 JOB_BOARD_INTERVIEW_RATE_PCT = 1.95
 WELL_TARGETED_INTERVIEW_RATE_PCT = (5.0, 10.0)
 
-# The published "100 applications" funnel, expressed as the benchmark midpoints per stage.
+# The published "100 applications" funnel, per stage. There is deliberately no range for
+# "Employer responded": v1 quoted 2-3 replies per 100, which is fewer than the 5-10
+# interviews below — impossible, since every interview is a reply. With no consistent
+# published figure for "any reply", that stage is shown without a benchmark.
 FUNNEL_PER_100 = {
-    "Employer responded": (2.0, 3.0),
     "Interview": (5.0, 10.0),
     "Offer": (0.0, 1.0),
 }

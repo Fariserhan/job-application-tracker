@@ -348,7 +348,6 @@ KPIS: list[Kpi] = [
 
 # Benchmarks table rows: (key, defined name, label, value, unit, source)
 def _benchmark_rows(follow_up_days: int, ghost_after_days: int) -> list[tuple]:
-    r_lo, r_hi = bm.FUNNEL_PER_100["Employer responded"]
     i_lo, i_hi = bm.FUNNEL_PER_100["Interview"]
     o_lo, o_hi = bm.FUNNEL_PER_100["Offer"]
     src = "jobtracker/benchmarks.py"
@@ -358,12 +357,8 @@ def _benchmark_rows(follow_up_days: int, ghost_after_days: int) -> list[tuple]:
          f"{src}: 1.24M tracked applications"),
         ("job_board_interview_rate_pct", "JobBoardInterviewBenchmark",
          "Interview rate - job-board quick apply", bm.JOB_BOARD_INTERVIEW_RATE_PCT, "%", src),
-        ("responses_per_100_lo", "BenchRespLo", "Employer responses per 100 - low", r_lo,
-         "per 100 applications", f"{src}: published 100-application funnel"),
-        ("responses_per_100_hi", "BenchRespHi", "Employer responses per 100 - high", r_hi,
-         "per 100 applications", src),
         ("interviews_per_100_lo", "BenchIntLo", "Interviews per 100 - low", i_lo,
-         "per 100 applications", src),
+         "per 100 applications", f"{src}: published 100-application funnel"),
         ("interviews_per_100_hi", "BenchIntHi", "Interviews per 100 - high", i_hi,
          "per 100 applications", src),
         ("offers_per_100_lo", "BenchOfferLo", "Offers per 100 - low", o_lo, "per 100 applications",
@@ -712,7 +707,7 @@ class _Builder:
             c.font = HEADER_FONT
             c.fill = HEADER_FILL
             c.border = HEADER_BORDER
-        funnel = [("Employer responded", "kpi_responses", "BenchRespLo", "BenchRespHi"),
+        funnel = [("Employer responded", "kpi_responses", None, None),
                   ("Assessment", "kpi_assessments", None, None),
                   ("Interview", "kpi_interviews", "BenchIntLo", "BenchIntHi"),
                   ("Offer", "kpi_offers", "BenchOfferLo", "BenchOfferHi")]

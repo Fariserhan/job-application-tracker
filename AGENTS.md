@@ -42,7 +42,8 @@ dbt models inside that subset (CI runs real `dbt build` on the same files).
 ## Benchmarks are load-bearing
 `jobtracker/benchmarks.py` is the single source: response-rate bands (<2% / 2-3% / 3-5% /
 5%+), the 6.87% direct-application interview benchmark (1.95% job boards), the
-100-application funnel (2-3 responses -> 5-10 interviews -> 0-1 offer) and the sample-size
+100-application funnel (5-10 interviews -> 0-1 offer; no "any reply" range — v1's 2-3 was
+fewer than the interviews, so it was dropped) and the sample-size
 thresholds. The SQL, DAX, Tableau and Excel layers are generated from it — change a band
 there and nowhere else.
 

@@ -87,7 +87,6 @@ RETURN
 
 
 def measures(follow_up_days: int = 7) -> list[Measure]:
-    resp_lo, resp_hi = bm.FUNNEL_PER_100["Employer responded"]
     int_lo, int_hi = bm.FUNNEL_PER_100["Interview"]
     off_lo, off_hi = bm.FUNNEL_PER_100["Offer"]
     m: list[Measure] = []
@@ -198,8 +197,6 @@ RETURN
         add(name, fun, f"DIVIDE ( {num}, [Total Applications] ) * 100", "0.0",
             f"{num} per 100 applications - the unit of the published funnel benchmark.",
             "funnel.pct_of_applied")
-    add("Responses vs Benchmark", fun, _vs_benchmark("[Responses per 100]", "Employer responded"),
-        "", "Ahead / On par / Behind the published responses-per-100 range.", "funnel.vs_benchmark")
     add("Interviews vs Benchmark", fun, _vs_benchmark("[Interviews per 100]", "Interview"),
         "", "Ahead / On par / Behind the published interviews-per-100 range.", "funnel.vs_benchmark")
     add("Offers vs Benchmark", fun, _vs_benchmark("[Offers per 100]", "Offer"),
@@ -327,8 +324,7 @@ RETURN
     add("Job Board Interview Benchmark %", bmk, _num(bm.JOB_BOARD_INTERVIEW_RATE_PCT / 100), "0.00%",
         "Published interview rate for job-board quick-apply.",
         "benchmarks.JOB_BOARD_INTERVIEW_RATE_PCT")
-    for label, stage, lo, hi in [("Responses", "Employer responded", resp_lo, resp_hi),
-                                 ("Interviews", "Interview", int_lo, int_hi),
+    for label, stage, lo, hi in [("Interviews", "Interview", int_lo, int_hi),
                                  ("Offers", "Offer", off_lo, off_hi)]:
         add(f"Benchmark {label} per 100 (Low)", bmk, _num(lo), "0.0",
             f"Published '{stage}' per 100 applications, low end.", "benchmarks.FUNNEL_PER_100")

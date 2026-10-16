@@ -199,8 +199,7 @@ ROUND(([Response Rate %]
     add("Cumulative Applications", "Velocity", "RUNNING_SUM(SUM([application_count]))", tc,
         "Compute using: applied_week.", "weekly_velocity.cumulative")
     # -------------------------------------------------------------- funnel vs benchmark
-    for label, measure, stage in [("Responses", "[Response Rate %]", "Employer responded"),
-                                  ("Interviews", "[Interview Rate %]", "Interview"),
+    for label, measure, stage in [("Interviews", "[Interview Rate %]", "Interview"),
                                   ("Offers", "[Offer Rate %]", "Offer")]:
         lo, hi = bm.FUNNEL_PER_100[stage]
         add(f"{label} per 100", "Benchmarks", f"{measure} * 100", agg,
