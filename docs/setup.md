@@ -9,7 +9,7 @@ venv\Scripts\python.exe -m pip install -r requirements.txt
 
 macOS / Linux: `python3 -m venv venv && venv/bin/pip install -r requirements.txt`.
 
-Try it without Gmail first — the demo builds a synthetic inbox and runs it through the real
+Try it without Gmail first. The demo builds a synthetic inbox and runs it through the real
 pipeline:
 
 ```bat
@@ -52,14 +52,26 @@ mailbox once so every email is judged by the current parser (a few minutes); lat
 fetch new mail.
 
 Data needs nothing. If `applications.db` is still in the project root, the app keeps using the
-root as its data directory. On first start the schema is migrated in place to v2 — after an
-automatic backup in `backups\<timestamp>-pre-v2-migration\` — your notes, manual
+root as its data directory. On first start the schema is migrated in place to v2, after an
+automatic backup in `backups\<timestamp>-pre-v2-migration\`. Your notes, manual
 corrections and status history are preserved. To move to the new layout, move
 `applications.db`, `sync_state.json`, `credentials.json` and `token.json` into `data\`.
 
 After migrating, run **Settings → Full re-parse** once (or `jobtracker sync --full`) so every
 email is re-judged by the current rules and the status-event log is rebuilt with real email
 dates.
+
+### Sync automatically (optional)
+
+The app already syncs by itself when you open it, if the last sync is more than 6 hours old
+(change or turn this off in **Settings → Syncing**). To have it sync even when the app is
+closed:
+
+Double-click **`auto_sync.bat`** once. Windows then reads your new job emails every morning
+at 9:00 and each time you sign in, with no window popping up, so the tracker is already up
+to date when you open it. Each run adds one line to `sync.log` in your data folder. Run
+`auto_sync.bat off` to stop it. If Google ever asks you to sign in again, the background run
+skips (it never opens a browser) until you click **Sync Gmail** in the app once.
 
 ## 4. Optional: Claude fallback for ambiguous emails
 

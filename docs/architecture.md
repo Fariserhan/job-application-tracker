@@ -26,7 +26,7 @@ flowchart LR
 **Search.** Two Gmail queries are unioned: one over ~60 job-board / ATS / assessment-vendor
 sender domains, one over subject terms and body phrases (so employer-hosted ATS domains
 nobody can enumerate still match). Known marketing templates are subtracted. Spam is
-included — Gmail occasionally misroutes real confirmations there.
+included because Gmail occasionally misroutes real confirmations there.
 
 **Fetch.** Metadata first (From / Subject / Date / snippet), bodies only when the first-pass
 verdict needs one; hard-blacklisted mail never costs a body download. Requests go in
@@ -41,12 +41,12 @@ failed is always seen again; sanitised bodies are cached so a full re-parse is o
 |---|---|
 | `classify.py` | Is this a real application event? Ordered tiers: hard blacklist → strong affirmation → response wording → known-platform loose tier. Every verdict carries a confidence. |
 | `status.py` | Which pipeline status the email evidences (rejection > offer > interview > assessment > applied when several match). |
-| `extract.py` | Employer and role from subject templates, body phrasing, sender display name, ATS tenant subdomain — with a quality gate that refuses platform names, pronouns and sentence fragments. |
+| `extract.py` | Employer and role from subject templates, body phrasing, sender display name, ATS tenant subdomain. A quality gate refuses platform names, pronouns and sentence fragments. |
 | `categorize.py` | Job type, seniority, industry, role family. |
 | `llm.py` | Optional Claude Haiku second opinion for *ambiguous* verdicts only (see below). |
 
-Parser quality is measured, not asserted: `python -m jobtracker eval` scores it against a
-labelled corpus (`tests/fixtures/email_corpus.jsonl`) and CI fails below the gate — see
+Parser quality is measured: `python -m jobtracker eval` scores it against a
+labelled corpus (`tests/fixtures/email_corpus.jsonl`) and CI fails below the gate. See
 [parser-evaluation.md](parser-evaluation.md).
 
 **The Claude fallback** is off by default and built to be cheap: rules first (clear-cut mail
@@ -90,15 +90,15 @@ erDiagram
 | sources | `raw.applications`, `raw.status_events`, `raw.processed_messages` (body column excluded) |
 | seeds | `status_stages` (funnel order, terminal / active / employer-response flags), `platform_channels` (job board vs employer site) |
 | staging | `stg_applications` (valid rows only, typed, NULLs for unknowns), `stg_status_events` (stage + date-trust flag), `stg_messages` |
-| intermediate | `int_application_milestones` — furthest stage reached, first trusted response date, assessment / interview / offer dates |
+| intermediate | `int_application_milestones`: furthest stage reached, first trusted response date, assessment / interview / offer dates |
 | marts | `fct_applications`, `fct_status_events`, `dim_*` (hashed surrogate keys), `rpt_application_analysis` (flat view for BI), `mart_parser_quality` |
 
 **Two ways to run the same SQL.** CI runs real `dbt build` (models + 50 data tests) and
 publishes `dbt docs`. The app runs the same model files with `warehouse/runner.py`, a
 ~150-line executor that resolves `ref` / `source` / `config`, topologically sorts the models
-and runs the singular data tests — so end users need neither dbt nor its 100 MB of
-dependencies. Anything outside that Jinja subset fails loudly, and CI's `dbt build` keeps
-the two honest.
+and runs the singular data tests. End users need neither dbt nor its 100 MB of
+dependencies. Anything outside that Jinja subset fails loudly, and CI's `dbt build` checks
+that the two stay in step.
 
 Builds are atomic: the warehouse is written to a fresh file and swapped in with
 `os.replace`, so the app never reads a half-built model and a failed build leaves the
@@ -121,7 +121,7 @@ previous warehouse untouched.
 each starting from a filtered `base` CTE so sidebar filters apply uniformly. Highlights:
 
 - **Wilson score intervals** on every rate (well-behaved at small n and near 0 / 100%).
-- **Kaplan–Meier survival** for time to first reply — applications still waiting are
+- **Kaplan–Meier survival** for time to first reply. Applications still waiting are
   right-censored instead of dropped (dropping them makes employers look faster than they
   are). Window functions compute the at-risk set and the cumulative product.
 - Funnel with `LAG` step conversion and the published per-100 benchmark per stage.
@@ -137,7 +137,7 @@ fields by `jobtracker/bi`, and tests check each against the SQL result.
 - **Streamlit app** (`app/`): overview, pipeline (kanban + table + detail timeline),
   analytics, follow-ups, data & model (live lineage graph, data tests, SQL viewer), settings.
 - **Findings report** (`python -m jobtracker report`): a written analysis with hedged
-  conclusions — only called a finding when the intervals say so.
+  conclusions. Something is only called a finding when the intervals say so.
 - **BI pack** (`python -m jobtracker export`): Excel workbook with live formulas and native
   charts, star-schema CSVs, DAX measures, Power BI theme, Tableau calculations. See
   [bi/](bi/).

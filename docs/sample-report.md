@@ -1,13 +1,13 @@
-# Job search analysis — synthetic demo data
+# Job search analysis (synthetic demo data)
 
-_Generated 16 October 2026 from the analytics warehouse (2026-10-16T16:41:47). Every figure comes from the SQL metric layer; rates carry 95% Wilson intervals._
+_Generated 16 October 2026 from the analytics warehouse (2026-10-16T17:18:54). Every figure comes from the SQL metric layer; rates carry 95% Wilson intervals._
 
 > **Demo dataset.** These numbers describe the synthetic mailbox that ships with the project, generated to exercise the real pipeline. They are not a real person's job search. Run `python -m jobtracker report` on your own data for a real analysis.
 
 ## Headline
 
 - **168 applications** to **28 employers** between 23 Apr 2026 and 15 Oct 2026.
-- **25.0% got an employer response** (95% CI 19.1%–32.1%) — **Strong** against the published bands (<2% below average · 2–3% average · 3–5% good · 5%+ strong).
+- **25.0% got an employer response** (95% CI 19.1%–32.1%). That is **Strong** against the published bands (<2% below average · 2–3% average · 3–5% good · 5%+ strong).
 - **13.1% reached an interview** (95% CI 8.8%–19.0%); well-targeted applications are quoted at 5–10%.
 - **3 offer(s)**, 27 rejections, 102 ghosted (60.7%), 36 still open.
 - Median time to a first reply: **8.5 days** (known reply dates: 42 of 42).
@@ -54,7 +54,7 @@ Time to first reply is estimated with a **Kaplan–Meier** survival curve: appli
 
 ## Monthly cohorts
 
-Recent cohorts are still maturing — their rates are floors, not final.
+Recent cohorts are still maturing, so treat their rates as floors.
 
 | Month | Apps | Response % | Interview % | Open |
 |---|---|---|---|---|

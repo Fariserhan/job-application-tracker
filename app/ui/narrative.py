@@ -3,7 +3,7 @@
 Pure functions over metric results (dicts / frames from the SQL layer), so they are unit
 tested without Streamlit. House rules:
 
-* every figure quoted is read from a metric row — the copy never computes a new analytic
+* every figure quoted is read from a metric row; the copy never computes a new analytic
 * a rate is never quoted without its sample size, and a comparison between segments is
   never stated without its interval and the "indicative" caveat when samples are small
 * unknown reply dates are excluded upstream (NULL); the copy says "dated replies"
@@ -26,14 +26,14 @@ def one_in(rate_pct) -> str:
     try:
         rate = float(rate_pct)
     except (TypeError, ValueError):
-        return "—"
+        return "-"
     if rate >= 5:
         return f"1 in {round(100 / rate):d}"
     return fmt_pct(rate)
 
 
 def lede_segments(k: dict) -> list[Segment]:
-    """'168 applications to 28 employers since 23 Apr. 1 in 4 got a reply — strong against
+    """'168 applications to 28 employers since 23 Apr. 1 in 4 got a reply, strong against
     the 2–5% published benchmark.'"""
     apps = int(k.get("applications") or 0)
     if not apps:
@@ -49,7 +49,7 @@ def lede_segments(k: dict) -> list[Segment]:
         (f"{apps:,} application{'s' if apps != 1 else ''}", "em"),
         (f" to {companies:,} employer{'s' if companies != 1 else ''} since {since}. ", ""),
         (reply, "em"),
-        (f"{verb} — {verdict} the 2–5% that published hiring data leads you to expect.", "muted"),
+        (f"{verb}, {verdict} the 2 to 5% most job seekers see.", "muted"),
     ]
 
 
@@ -79,14 +79,15 @@ def notes(k: dict, platforms: pd.DataFrame, channels: pd.DataFrame,
         overall_hi = k.get("response_rate_hi")
         separated = (pd.notna(best["response_rate_lo"]) and overall_hi is not None
                      and float(best["response_rate_lo"]) > float(overall_hi))
-        caveat = ("Its interval sits clearly above your overall rate."
+        caveat = ("Even its worst case beats your average, so this is a real difference."
                   if separated else
-                  "Its interval overlaps your overall rate, so treat it as a lead, not a verdict.")
+                  "Its likely range overlaps your average, so it could still be luck. Worth "
+                  "trying more, but not proof yet.")
         out["channel"] = Note(
             "Best channel", f"{best['platform']} replies most often",
-            f"<b>{fmt_pct(best['response_rate_pct'])}</b> replied (95% interval "
-            f"{fmt_num(best['response_rate_lo'])}–{fmt_num(best['response_rate_hi'])}%, "
-            f"n = {int(best['applications'])}, {str(best['sample_confidence']).lower()} sample). "
+            f"<b>{fmt_pct(best['response_rate_pct'])}</b> of {int(best['applications'])} "
+            f"applications got a reply (likely somewhere between "
+            f"{fmt_num(best['response_rate_lo'], 0)} and {fmt_num(best['response_rate_hi'], 0)}%). "
             f"{caveat}", "good" if separated else "")
 
     if not channels.empty:
@@ -100,12 +101,13 @@ def notes(k: dict, platforms: pd.DataFrame, channels: pd.DataFrame,
             ahead = rate >= bm.DIRECT_INTERVIEW_RATE_PCT
             out["direct"] = Note(
                 "Direct applications",
-                "Applying direct pays — do more of it" if ahead
+                "Applying direct pays off. Do more of it" if ahead
                 else "Direct applications lag the benchmark",
-                f"Careers-page applications reached interview <b>{fmt_pct(rate)}</b> of the "
-                f"time (n = {int(d['applications'])}){board_txt}. The published direct rate is "
-                f"<b>{bm.DIRECT_INTERVIEW_RATE_PCT}%</b>; only "
-                f"{fmt_pct(k.get('direct_share_pct'), 0)} of your volume goes direct.",
+                f"Applying on an employer's own website led to an interview "
+                f"<b>{fmt_pct(rate)}</b> of the time (out of {int(d['applications'])}){board_txt}. "
+                f"Published data puts direct applications at <b>{bm.DIRECT_INTERVIEW_RATE_PCT}%"
+                f"</b>. Only {fmt_pct(k.get('direct_share_pct'), 0)} of your applications go "
+                "direct, so there is room to do more.",
                 "good" if ahead else "warn")
 
     ghost = k.get("ghost_rate_pct")
@@ -114,34 +116,34 @@ def notes(k: dict, platforms: pd.DataFrame, channels: pd.DataFrame,
             "Silence", f"{fmt_pct(ghost, 0)} never heard back",
             f"<b>{int(k.get('ghosted') or 0):,}</b> applications went "
             f"{settings.ghost_after_days}+ days without any reply and were marked ghosted. "
-            "In cold applications silence is the norm — a volume problem, not a verdict.",
+            "Silence is normal for cold applications. It says more about volume than about you.",
             "bad" if float(ghost) >= 50 else "")
 
     median = k.get("median_days_to_response")
     if median is not None and pd.notna(median):
         km21 = survival_marks.get(21)
         km_txt = (f" Counting the ones still waiting, <b>{fmt_pct(km21, 0)}</b> have heard "
-                  "anything by day 21 — after that, the odds flatten." if km21 is not None else "")
+                  "anything by day 21. After that, replies rarely come." if km21 is not None else "")
         out["timing"] = Note(
-            "Reply time", f"Replies that come, come within {fmt_num(median)} days",
-            f"Median across <b>{int(k.get('responses_with_known_date') or 0)}</b> dated replies "
-            f"(unknown dates are excluded, never zero-filled).{km_txt}")
+            "Reply time", f"Replies usually come within {fmt_num(median)} days",
+            f"Half of the <b>{int(k.get('responses_with_known_date') or 0)}</b> replies with a "
+            f"date came within {fmt_num(median)} days.{km_txt}")
 
     if period:
         last, prev = int(period.get("last_30") or 0), int(period.get("prev_30") or 0)
         word = "picked up" if last > prev else "eased" if last < prev else "held steady"
         out["pace"] = Note(
             "Momentum", f"Pace {word}: {last} sent in the last 30 days",
-            f"Against {prev} in the 30 days before. Reply rate "
+            f"Against {prev} in the 30 days before. Recent reply rate "
             f"<b>{fmt_pct(period.get('last_30_response_pct'))}</b> vs "
-            f"{fmt_pct(period.get('prev_30_response_pct'))} — the newest applications are still "
-            "maturing, so read that rate as a floor.")
+            f"{fmt_pct(period.get('prev_30_response_pct'))} before. The newest applications "
+            "have not had time to get replies yet, so that number will rise.")
 
     if not follow_ups.empty:
         post = int((follow_ups["current_status"] == "Interview").sum())
         out["follow_up"] = Note(
             "Next action", f"{len(follow_ups)} applications are due a nudge",
             f"Open and silent for {settings.follow_up_after_days}+ days"
-            + (f"; <b>{post}</b> of them after an interview — chase those first." if post else ".")
+            + (f"; <b>{post}</b> of them after an interview. Chase those first." if post else ".")
             , "warn")
     return out

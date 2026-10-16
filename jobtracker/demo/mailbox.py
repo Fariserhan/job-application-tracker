@@ -1,8 +1,8 @@
 """A synthetic Gmail mailbox for the public demo, screenshots and end-to-end tests.
 
-It generates ~6 months of a fictional analyst's job search — confirmations from LinkedIn,
+It generates ~6 months of a fictional analyst's job search (confirmations from LinkedIn,
 JobStreet, Hiredly, Prosple, Indeed and employer ATS sites, assessment invitations,
-interviews, rejections, an offer — mixed with the noise a real inbox carries (job alerts,
+interviews, rejections, an offer) mixed with the noise a real inbox carries (job alerts,
 digests, account verification, marketing). Every message then goes through the *real*
 sync engine and parser, so the demo exercises the production path, not a mock-up.
 
@@ -216,7 +216,7 @@ class DemoMailbox:
         recruiter = f"{company} Talent Acquisition <careers@{domain}>"
         p_response = PLATFORMS[platform][1]
         if rng.random() > p_response:
-            return  # silence — the ghosting rule will close it
+            return  # silence; the ghosting rule will close it
         day = applied + timedelta(days=int(rng.gammavariate(2.2, 5.5)) + 1)
         roll = rng.random()
         # A third of responses are straight rejections; the rest move forward.

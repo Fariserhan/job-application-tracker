@@ -1,4 +1,4 @@
-"""Cached, read-only access to the warehouse — and the one place the app writes from.
+"""Cached, read-only access to the warehouse, and the one place the app writes from.
 
 Why it is shaped this way:
 
@@ -14,12 +14,14 @@ Why it is shaped this way:
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import tempfile
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlencode
 
 import duckdb
 import pandas as pd
@@ -28,7 +30,7 @@ import streamlit as st
 from jobtracker import warehouse
 from jobtracker.config import PROJECT_ROOT, Settings, load_settings
 from jobtracker.store import Repository
-from jobtracker.warehouse.metrics import Filters, Metrics
+from jobtracker.warehouse.metrics import REACHED, Filters, Metrics
 
 DEMO_ENV = "JOBTRACKER_DEMO"
 DEMO_DIR_ENV = "JOBTRACKER_DEMO_DIR"
@@ -57,7 +59,7 @@ def _truthy(value: str | None) -> bool:
 
 
 def holds_demo_data(settings: Settings) -> bool:
-    """A data dir created by ``jobtracker demo`` — safe to regenerate, never real mail."""
+    """A data dir created by ``jobtracker demo``: safe to regenerate, never real mail."""
     try:
         state = json.loads(Path(settings.state_path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -95,7 +97,7 @@ def regenerate_demo(path: Path) -> dict:
     from jobtracker.demo import build_demo
 
     if not _safe_to_rebuild(path):
-        raise RuntimeError(f"{path} holds real application data — refusing to overwrite it.")
+        raise RuntimeError(f"{path} holds real application data. Refusing to overwrite it.")
     result = build_demo(path)
     clear_caches()
     return result
@@ -201,14 +203,195 @@ def reset_filters() -> None:
 
 
 def _filters_key(f: Filters) -> tuple:
-    return (f.date_from, f.date_to, tuple(f.platforms), tuple(f.statuses),
-            tuple(f.role_families), tuple(f.industries), tuple(f.job_types), f.search.strip())
+    """Hashable cache key covering every Filters field (lists become tuples)."""
+    return tuple((fld.name, tuple(v) if isinstance(v := getattr(f, fld.name), list) else v)
+                 for fld in dataclasses.fields(Filters))
 
 
 def _filters_from_key(key: tuple) -> Filters:
-    d_from, d_to, platforms, statuses, roles, industries, job_types, search = key
-    return Filters(d_from, d_to, list(platforms), list(statuses), list(roles), list(industries),
-                   list(job_types), search)
+    return Filters(**{name: list(v) if isinstance(v, tuple) else v for name, v in key})
+
+
+# ============================================================================ URL state
+# Global filters live in session state (the widgets) and are mirrored into the URL, so a
+# drill-down link, a bookmark or the browser's Back button lands on exactly the same view.
+# A URL carrying the marker ``f=1`` holds the complete filter state; anything else (e.g. a
+# click on the top navigation, which clears the query string) leaves the session as it is.
+PERIOD_SLUGS = {"All time": "all", "Last 30 days": "30d", "Last 90 days": "90d",
+                "Year to date": "ytd", "Custom": "custom"}
+LIST_PARAMS = {"platform": "f_platforms", "status": "f_statuses", "role": "f_roles",
+               "industry": "f_industries", "jobtype": "f_job_types"}
+GLOBAL_PARAMS = ("f", "period", "start", "end", "q", *LIST_PARAMS)
+
+
+def global_params() -> dict[str, str | list[str]]:
+    """The current global filters as URL parameters (empty values omitted)."""
+    state = st.session_state
+    out: dict[str, str | list[str]] = {}
+    period = state.get("f_period") or "All time"
+    if period != "All time":
+        out["period"] = PERIOD_SLUGS.get(period, "all")
+        dates = state.get("f_dates")
+        if period == "Custom" and isinstance(dates, (list, tuple)) and len(dates) == 2:
+            out["start"], out["end"] = dates[0].isoformat(), dates[1].isoformat()
+    for param, key in LIST_PARAMS.items():
+        values = [str(v) for v in state.get(key) or []]
+        if values:
+            out[param] = values
+    search = str(state.get("f_search") or "").strip()
+    if search:
+        out["q"] = search
+    return out
+
+
+def _url_globals() -> dict[str, str | list[str]]:
+    qp = st.query_params
+    out: dict[str, str | list[str]] = {}
+    for key in GLOBAL_PARAMS:
+        if key in qp:
+            out[key] = qp.get_all(key) if key in LIST_PARAMS else qp[key]
+    return out
+
+
+def _adopt(url: dict[str, str | list[str]]) -> None:
+    reset_filters()
+    slug_to_period = {v: k for k, v in PERIOD_SLUGS.items()}
+    period = slug_to_period.get(str(url.get("period", "all")), "All time")
+    st.session_state["f_period"] = period
+    if period == "Custom":
+        try:
+            st.session_state["f_dates"] = (date.fromisoformat(str(url["start"])),
+                                           date.fromisoformat(str(url["end"])))
+        except (KeyError, ValueError):
+            st.session_state["f_period"] = "All time"
+    for param, key in LIST_PARAMS.items():
+        values = url.get(param)
+        if values:
+            st.session_state[key] = [values] if isinstance(values, str) else list(values)
+    if url.get("q"):
+        st.session_state["f_search"] = str(url["q"])
+
+
+def sync_url() -> None:
+    """Reconcile filters with the URL once per run (call before any filter widget renders)."""
+    url = _url_globals()
+    signature = urlencode(sorted((k, str(v)) for k, v in url.items()))
+    if url.get("f") == "1" and signature != st.session_state.get("_jt_url_sig"):
+        _adopt(url)  # arrived by a link, a bookmark or Back: the URL is the truth
+    wanted = {"f": "1", **global_params()}
+    for key in GLOBAL_PARAMS:
+        if key not in wanted and key in st.query_params:
+            del st.query_params[key]
+    for key, value in wanted.items():
+        st.query_params[key] = value
+    st.session_state["_jt_url_sig"] = urlencode(
+        sorted((k, str(v)) for k, v in wanted.items()))
+
+
+def href(page: str, **params) -> str:
+    """Relative link to ``page`` carrying the current filters plus ``params``.
+
+    ``None`` / empty values are dropped; lists become repeated keys. Used for every
+    drill-down link, so the target page shows exactly the set the number stood for."""
+    query: dict[str, str | list[str]] = {"f": "1", **global_params()}
+    for key, value in params.items():
+        if value is None or value == "" or value == []:
+            query.pop(key, None)
+        else:
+            query[key] = [str(v) for v in value] if isinstance(value, (list, tuple)) else str(value)
+    return f"{page}?{urlencode(query, doseq=True)}"
+
+
+# ============================================================================ drill-down
+REACHED_LABELS = {
+    "response": "got a reply",
+    "no_response": "no reply yet",
+    "assessment": "reached an assessment",
+    "interview": "reached an interview",
+    "offer": "got an offer",
+    "rejected": "rejected",
+    "ghosted": "ghosted (no reply for weeks)",
+    "active": "still open",
+    "awaiting": "waiting for a first reply",
+    "in_progress": "in progress (assessment or interview)",
+    "follow_up": "due a follow-up",
+    "dated_reply": "replied (reply date known)",
+}
+DRILL_PARAMS = ("reached", "month", "day", "company", "seniority", "channel")
+
+
+@dataclass(frozen=True)
+class Drill:
+    """The drill-down part of a Pipeline URL: which set of applications a link stood for."""
+    reached: tuple[str, ...] = ()
+    month: str = ""
+    day: date | None = None
+    companies: tuple[str, ...] = ()
+    seniorities: tuple[str, ...] = ()
+    channels: tuple[str, ...] = ()
+
+    @property
+    def active(self) -> bool:
+        return bool(self.reached or self.month or self.day or self.companies
+                    or self.seniorities or self.channels)
+
+    def chips(self) -> list[tuple[str, str, str]]:
+        """(url param, value, plain-language label) for every active part."""
+        out = [("reached", r, REACHED_LABELS.get(r, r)) for r in self.reached]
+        if self.month:
+            out.append(("month", self.month, f"applied in {month_name(self.month)}"))
+        if self.day:
+            out.append(("day", self.day.isoformat(),
+                        f"applied on {self.day.day} {self.day:%b %Y}"))
+        out += [("company", c, c) for c in self.companies]
+        out += [("seniority", v, v) for v in self.seniorities]
+        out += [("channel", v, v) for v in self.channels]
+        return out
+
+
+def month_name(month: str) -> str:
+    try:
+        return datetime.strptime(month + "-01", "%Y-%m-%d").strftime("%B %Y")
+    except ValueError:
+        return month
+
+
+def drill_from_url() -> Drill:
+    qp = st.query_params
+    reached = tuple(r for r in qp.get_all("reached") if r in REACHED)
+    day = None
+    if qp.get("day"):
+        try:
+            day = date.fromisoformat(str(qp["day"]))
+        except ValueError:
+            day = None
+    return Drill(reached=reached, month=str(qp.get("month") or ""), day=day,
+                 companies=tuple(qp.get_all("company")),
+                 seniorities=tuple(qp.get_all("seniority")),
+                 channels=tuple(qp.get_all("channel")))
+
+
+def with_drill(drill: Drill, base: Filters | None = None) -> Filters:
+    """The global filters narrowed by a drill-down. Every part is applied in SQL."""
+    f = dataclasses.replace(base or current_filters())
+    f.reached = list(drill.reached)
+    f.month = drill.month
+    f.companies = list(drill.companies)
+    f.seniorities = list(drill.seniorities)
+    f.channels = list(drill.channels)
+    if drill.day:
+        f.date_from = max(filter(None, [f.date_from, drill.day]))
+        f.date_to = min(filter(None, [f.date_to, drill.day]))
+    return f
+
+
+def drill(**parts) -> Filters:
+    """Shorthand used by charts: the current filters narrowed by keyword parts, e.g.
+    ``drill(reached=["interview"], platforms=["LinkedIn"])``."""
+    f = dataclasses.replace(current_filters())
+    for name, value in parts.items():
+        setattr(f, name, value)
+    return f
 
 
 # ============================================================================ queries
@@ -355,3 +538,67 @@ def humanize_since(stamp: str | None) -> str:
     if seconds < 86400:
         return f"{seconds // 3600} h ago"
     return f"{seconds // 86400} d ago"
+
+
+CHANGE_ICONS = {"Interview": ":material/event:", "Offer": ":material/celebration:",
+                "Rejected": ":material/close:", "Ghosted": ":material/schedule:",
+                "Assessment / OA": ":material/quiz:", "Withdrawn": ":material/undo:"}
+
+
+def latest_changes(limit: int = 6) -> tuple[str, list[dict], int] | None:
+    """What the last sync (and anything done by hand since) changed, newest and most
+    interesting first: status moves, then new applications. None before the first sync."""
+    try:
+        r = Repository(settings())
+        state = r.load_state()
+        since = state.get("last_sync_started")
+        changes = r.changes_since(since) if since else None
+    except Exception:
+        return None
+    if changes is None:
+        return None
+    when = humanize_since(state.get("last_sync_at"))
+    if not changes:
+        return f"Nothing new since your last sync ({when}).", [], 0
+    moved = [c for c in changes if c.get("from_status")]
+    new = [c for c in changes if not c.get("from_status")]
+    parts = []
+    if new:
+        parts.append(f"{len(new)} new application{'s' if len(new) != 1 else ''}")
+    if moved:
+        parts.append(f"{len(moved)} status change{'s' if len(moved) != 1 else ''}")
+    title = f"Since your last sync ({when}): " + " and ".join(parts)
+    rank = {"Offer": 0, "Interview": 1, "Assessment / OA": 2, "Rejected": 3, "Withdrawn": 4,
+            "Ghosted": 6}
+    moved.sort(key=lambda c: rank.get(str(c.get("to_status")), 5))
+    ordered = [c for c in moved if c.get("to_status") != "Ghosted"] + new + [
+        c for c in moved if c.get("to_status") == "Ghosted"]
+    items = []
+    for c in ordered[:limit]:
+        who = f"{c.get('company_name') or 'Unknown'}, {c.get('role_title') or 'role not stated'}"
+        if c.get("from_status"):
+            label = f"{who}: {c['from_status']} → {c['to_status']}"
+            icon = CHANGE_ICONS.get(str(c["to_status"]), ":material/arrow_forward:")
+        else:
+            label, icon = f"New: {who}", ":material/add_circle:"
+        items.append({"id": str(c["thread_id"]), "label": label, "icon": icon})
+    return title, items, max(0, len(changes) - len(items))
+
+
+def background_sync_status() -> tuple[str, str] | None:
+    """The last line of sync.log (written by ``jobtracker sync --background``, the Windows
+    schedule set up by auto_sync.bat), as (plain text, tone). None when it never ran."""
+    try:
+        log = settings().data_dir / "sync.log"
+        lines = log.read_text(encoding="utf-8").strip().splitlines()
+    except OSError:
+        return None
+    if not lines:
+        return None
+    stamp, _, rest = lines[-1].partition("  ")
+    when = stamp[11:16] if stamp[:10] == date.today().isoformat() else stamp[:10]
+    if rest.strip().startswith("ok"):
+        return f"Auto-synced at {when}", ""
+    if "SignInRequired" in rest:
+        return "Background sync needs you to click Sync Gmail once", "warn"
+    return f"Background sync at {when} failed", "warn"

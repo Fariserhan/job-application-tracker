@@ -5,7 +5,7 @@ most ATS pages ship JSON-LD but no OpenGraph).
 
 Email links are untrusted input, so fetching is SSRF-guarded properly: every hop of a
 redirect chain is re-validated, and the hostname is *resolved* and every address checked
-(``ipaddress.is_global``) — a regex on the hostname alone is bypassed by DNS names that
+(``ipaddress.is_global``). A regex on the hostname alone is bypassed by DNS names that
 point at 127.0.0.1 or the cloud metadata address.
 """
 from __future__ import annotations

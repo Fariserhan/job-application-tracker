@@ -8,7 +8,7 @@ from .patterns import CONDITIONAL_SENTENCE_PATTERNS, STATUS_KEYWORDS
 
 _STATUS = [(status, [re.compile(p) for p in patterns]) for status, patterns in STATUS_KEYWORDS]
 _CONDITIONAL = [re.compile(p) for p in CONDITIONAL_SENTENCE_PATTERNS]
-# Sentence boundary: ., ! or ? followed by whitespace — but not the abbreviation dots in
+# Sentence boundary: ., ! or ? followed by whitespace, but not the abbreviation dots in
 # company names ("Sdn. Bhd.", "Co. Ltd").
 _SENTENCE_SPLIT = re.compile(r"(?<!\bsdn\.)(?<!\bco\.)(?<!\bpte\.)(?<!\binc\.)(?<=[.!?])\s+")
 # A recorded / on-demand "video interview" (HireVue and friends) has no interviewer: it is

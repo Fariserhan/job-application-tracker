@@ -1,10 +1,10 @@
 """The semantic metric layer: every number the app, the Excel workbook and the BI pack show.
 
-Each metric is one SQL statement over the dbt marts, computed once in DuckDB — the app
+Each metric is one SQL statement over the dbt marts, computed once in DuckDB. The app
 never re-derives an analytic in pandas. Every statement starts from a ``base`` CTE (the
 filtered ``fct_applications``), so sidebar filters apply uniformly to every chart.
 
-Statistical honesty is built in rather than footnoted:
+The statistics are part of the queries themselves:
 
 * rates carry **Wilson score 95% intervals** (well-behaved at small n and near 0%/100%)
 * time-to-reply uses **Kaplan–Meier survival**: applications still waiting are *censored*
@@ -50,6 +50,24 @@ SEGMENT_COLUMNS = {
 }
 
 
+# Drill-down stage sets: each key selects the applications behind one number in the app
+# (a KPI, a funnel stage, a flow node). Several keys combine with AND.
+REACHED: dict[str, str] = {
+    "response": "is_response",
+    "no_response": "NOT is_response",
+    "assessment": "reached_assessment",
+    "interview": "reached_interview",
+    "offer": "reached_offer",
+    "rejected": "is_rejected",
+    "ghosted": "is_ghosted",
+    "active": "is_active",
+    "awaiting": "(is_active AND max_stage_reached = 1)",
+    "in_progress": "(is_active AND max_stage_reached >= 2)",
+    "follow_up": "(is_active AND days_since_activity >= $follow_up_days)",
+    "dated_reply": "days_to_response IS NOT NULL",
+}
+
+
 @dataclass
 class Filters:
     date_from: date | None = None
@@ -60,6 +78,12 @@ class Filters:
     industries: list[str] = field(default_factory=list)
     job_types: list[str] = field(default_factory=list)
     search: str = ""
+    # Drill-down dimensions (set from the app's links; every one is applied in SQL).
+    reached: list[str] = field(default_factory=list)
+    month: str = ""                      # 'YYYY-MM' of the application date
+    companies: list[str] = field(default_factory=list)
+    seniorities: list[str] = field(default_factory=list)
+    channels: list[str] = field(default_factory=list)
 
     def clause(self) -> tuple[str, dict]:
         parts: list[str] = ["TRUE"]
@@ -72,7 +96,8 @@ class Filters:
             params["f_to"] = self.date_to
         for attr, column in (("platforms", "platform"), ("statuses", "current_status"),
                              ("role_families", "role_family"), ("industries", "industry"),
-                             ("job_types", "job_type")):
+                             ("job_types", "job_type"), ("companies", "company_name"),
+                             ("seniorities", "seniority"), ("channels", "channel")):
             values = getattr(self, attr)
             if values:
                 parts.append(f"list_contains($f_{attr}, {column})")
@@ -81,6 +106,13 @@ class Filters:
             parts.append("(company_name ILIKE $f_search OR role_title ILIKE $f_search "
                          "OR coalesce(location, '') ILIKE $f_search)")
             params["f_search"] = f"%{self.search.strip()}%"
+        for key in self.reached:
+            if key not in REACHED:
+                raise ValueError(f"unknown stage set {key!r}")
+            parts.append(REACHED[key])
+        if self.month.strip():
+            parts.append("strftime(applied_date, '%Y-%m') = $f_month")
+            params["f_month"] = self.month.strip()
         return " AND ".join(parts), params
 
     @property
@@ -242,7 +274,7 @@ ORDER BY w.week_start
 
 SQL["monthly_cohorts"] = f"""
 -- Cohort view: applications grouped by the month they were sent, and how each cohort
--- has played out so far. Recent cohorts are still maturing — read their rates as floors.
+-- has played out so far. Recent cohorts are still maturing, so read their rates as floors.
 SELECT
     strftime(applied_date, '%Y-%m')                                  AS cohort_month,
     COUNT(*)                                                         AS applications,
@@ -261,8 +293,8 @@ ORDER BY 1
 """
 
 SQL["platform_performance"] = f"""
--- Which channel actually produces replies — with 95% Wilson intervals, so a platform with
--- six applications cannot "win" on luck — and the gap to the 6.87% direct-application
+-- Which channel actually produces replies, with 95% Wilson intervals (so a platform with
+-- six applications cannot "win" on luck), and the gap to the 6.87% direct-application
 -- interview benchmark.
 SELECT
     platform,

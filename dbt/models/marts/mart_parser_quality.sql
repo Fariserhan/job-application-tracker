@@ -1,5 +1,5 @@
 -- Noise filter & parser audit: how many inspected emails were judged real application mail,
--- by which tier, with what confidence — and how many needed the optional Claude fallback.
+-- by which tier, with what confidence, and how many needed the optional Claude fallback.
 select
     coalesce(filter_reason, '(none)')                               as filter_reason,
     is_application_mail,

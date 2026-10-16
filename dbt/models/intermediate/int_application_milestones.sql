@@ -7,7 +7,7 @@
 --
 -- First response = the first employer-side event (assessment, interview, offer or
 -- rejection). Its date is only used when it is trustworthy: dated by an email / a person,
--- or — for migrated v1 history — strictly after the application date. Otherwise it stays
+-- or (for migrated v1 history) strictly after the application date. Otherwise it stays
 -- NULL and is excluded from timing metrics; it is never zero-filled.
 with apps as (
     select * from {{ ref('stg_applications') }}

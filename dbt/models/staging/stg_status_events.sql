@@ -1,6 +1,6 @@
 -- Status changes, typed and joined to the stage vocabulary. `is_trusted_date` marks events
 -- whose date really is the day it happened (from an email or a person) versus dates carried
--- over from the v1 tracker or reconstructed by the migration — those are kept for the
+-- over from the v1 tracker or reconstructed by the migration. Those are kept for the
 -- audit trail but only used for timing when they are later than the application date.
 with events as (
     select * from {{ source('raw', 'status_events') }}

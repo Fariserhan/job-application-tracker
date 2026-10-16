@@ -49,6 +49,10 @@ class Settings:
     # Job-posting enrichment (OpenGraph / JSON-LD scrape of the posting link).
     enrich_enabled: bool = True
 
+    # The app syncs Gmail by itself when it opens and the last sync is older than this
+    # (0 turns it off). It never opens a Google sign-in on its own.
+    auto_sync_hours: int = 6
+
     # ------------------------------------------------------------------ paths
     @property
     def db_path(self) -> Path:
@@ -101,6 +105,7 @@ class Settings:
 
 
 _ENV = {
+    "auto_sync_hours": "JOBTRACKER_AUTO_SYNC_HOURS",
     "ghost_after_days": "JOBTRACKER_GHOST_AFTER_DAYS",
     "follow_up_after_days": "JOBTRACKER_FOLLOW_UP_AFTER_DAYS",
     "gmail_after": "GMAIL_AFTER",
