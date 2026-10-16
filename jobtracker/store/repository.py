@@ -343,6 +343,33 @@ class Repository:
                             note=note)
         return True
 
+    def last_status_change(self, thread_id: str) -> dict | None:
+        """The most recent status event that can be undone (it has a previous status)."""
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM status_events WHERE thread_id=? "
+                "ORDER BY occurred_on DESC, event_id DESC LIMIT 1", (thread_id,)).fetchone()
+        if row is None or not row["from_status"]:
+            return None
+        return dict(row)
+
+    def undo_last_status(self, thread_id: str) -> str | None:
+        """Undo the latest status change: restore the previous status and remove that event,
+        so a mis-click never counts in the funnel. Returns the restored status, or None when
+        there is nothing to undo (only the opening event is left)."""
+        last = self.last_status_change(thread_id)
+        if last is None:
+            return None
+        with self.connect() as conn:
+            conn.execute("DELETE FROM status_events WHERE event_id=?", (last["event_id"],))
+            app = conn.execute("SELECT application_date FROM applications WHERE thread_id=?",
+                               (thread_id,)).fetchone()
+            latest = self._latest_event_day(conn, thread_id) or (app["application_date"] if app
+                                                                 else "") or _today()
+            conn.execute("UPDATE applications SET current_status=?, last_updated=?, updated_at=? "
+                         "WHERE thread_id=?", (last["from_status"], latest, now(), thread_id))
+        return str(last["from_status"])
+
     def update_fields(self, thread_id: str, **fields) -> bool:
         allowed = {"company_name", "role_title", "source_platform", "job_url", "notes",
                    "location", "salary_text", "job_type", "industry", "seniority_level"}
