@@ -70,5 +70,8 @@ Honesty rules — do not break them:
 - Python 3.11+; no new runtime deps without asking (`requirements.txt`).
 - UI: theme in `.streamlit/config.toml`; custom styling only in the single scoped
   `app/assets/style.css` design system (tokens + components). No inline CSS elsewhere.
+  The stylesheet must not contain `<` (Streamlit's HTML sanitiser drops the whole block;
+  `load_css()` raises). Colours are pinned in `app/ui/theme.py` and mirrored in
+  `jobtracker/bi/style.py` — change both together. Motion respects `prefers-reduced-motion`.
 - Hermetic pytest per module (network mocked, data in temp dirs). Add a test for
   non-trivial changes. Structural code search: prefer `ast-grep`, scoped paths.

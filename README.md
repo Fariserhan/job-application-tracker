@@ -19,7 +19,8 @@ pipeline. No real application data is in this repository._
    incremental.
 2. **Separates real application events from noise** — job alerts, digests, account emails,
    marketing — with a deterministic rule engine whose accuracy is
-   [measured on a labelled corpus](docs/parser-evaluation.md) and gated in CI. Ambiguous
+   [measured on a labelled 261-email corpus](docs/parser-evaluation.md) and gated in CI:
+   97.7% event F1 on a blind holdout never used for tuning (the v1 parser: 85.7%). Ambiguous
    emails can optionally get a second opinion from Claude Haiku: rules first, one cached
    call per email, a hard monthly budget (≈ US$0.0001 per email).
 3. **Keeps an append-only history** of every status change, dated by the email that caused
@@ -37,6 +38,13 @@ pipeline. No real application data is in this repository._
 | ![Analytics](docs/screenshots/analytics.png) | **Analytics** — funnel and Sankey flow, channel effectiveness with confidence intervals and the 6.87% direct-application benchmark, Kaplan–Meier reply times, cohorts, segments. |
 | ![Pipeline](docs/screenshots/pipeline.png) | **Pipeline** — kanban and table views, a per-application timeline built from the event log, notes, manual corrections, and logging applications that never sent an email. |
 | ![Data & model](docs/screenshots/data-model.png) | **Data & model** — the live dbt lineage graph, data-test results, coverage audit, the noise-filter audit and every metric's SQL. |
+
+The app is designed like a data-journalism page rather than a dashboard of cards: every
+section leads with a sentence written from the data, charts are titled with their takeaway,
+and the page assembles itself in sequence — the headline underlines itself, numbers count
+up, the Sankey flows stage by stage — all switched off under `prefers-reduced-motion`. The
+palette is checked for colour-blind separation, and the Excel / Power BI / Tableau pack
+uses the same one.
 
 Plus **Follow-ups** (who to chase, with draft emails), **Settings**, a written findings
 report (`python -m jobtracker report` → [sample](docs/sample-report.md)), and a BI pack
