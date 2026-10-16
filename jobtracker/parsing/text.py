@@ -28,8 +28,8 @@ def strip_tracking_params(url: str) -> str:
     return cleaned.rstrip("?&")
 
 
-def sanitize_body(body_text: str) -> str:
-    """First-message text only: drop quoted replies, signatures and URLs, cap the length.
+def first_message(body_text: str) -> str:
+    """The new message only, line structure kept: quoted replies, signatures and URLs cut.
 
     Quoted previous messages leak old statuses into classification (a follow-up quoting an
     old rejection would read as Rejected) — cutting at the first quote marker keeps the
@@ -46,8 +46,12 @@ def sanitize_body(body_text: str) -> str:
             text = text[: match.start()]
     text = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith(">"))
     text = html_lib.unescape(text)
-    text = _URL.sub(" ", text)
-    return " ".join(text.split()[:MAX_BODY_WORDS])
+    return _URL.sub(" ", text)
+
+
+def sanitize_body(body_text: str) -> str:
+    """First-message text collapsed to one line of at most MAX_BODY_WORDS words."""
+    return " ".join(first_message(body_text).split()[:MAX_BODY_WORDS])
 
 
 def strip_html(raw_html: str) -> str:

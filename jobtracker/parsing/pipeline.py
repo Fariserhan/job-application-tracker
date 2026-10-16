@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 
-from ..domain import APPLIED, DETECTION_RANK
+from ..domain import APPLIED, ASSESSMENT, DETECTION_RANK
 from .categorize import (
     classify_industry,
     classify_job_type,
@@ -25,20 +25,29 @@ from .extract import (
     clean_company_name,
     clean_role_name,
     company_fallback,
-    company_from_sender,
+    company_from_bracket,
+    company_from_display_name,
+    company_from_domain,
+    company_from_sender_domain,
+    company_role_from_card,
     detect_platform,
     extract_company_role,
     extract_job_url,
+    is_decorated,
     is_platform_company,
     looks_like_role,
     parse_subject,
+    plausible_company,
     refine_company_role,
     role_from_application_snippet,
     role_from_subject,
+    role_from_subject_segments,
     role_from_url_slug,
+    strip_platform_suffix,
 )
+from .patterns import ASSESSMENT_VENDOR_SENDERS
 from .status import detect_status
-from .text import sanitize_body
+from .text import first_message, sanitize_body
 
 
 @dataclass
@@ -96,19 +105,77 @@ def _today() -> str:
     return datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
 
+def _good_company(name: str) -> bool:
+    return bool(name) and not is_platform_company(name) and plausible_company(name)
+
+
+def _good_role(role: str) -> bool:
+    return bool(role) and looks_like_role(role) and not is_decorated(role)
+
+
+def resolve_company(sender: str, subject: str, body: str = "", card_company: str = "",
+                    body_company: str = "") -> str:
+    """The employer, from the most to the least trustworthy source:
+
+    1. a name in the email that the sender's own domain spells ('tasikactuarial.com' ->
+       'Tasik Actuarial Consulting')
+    2. an explicit subject template ("Thank you for applying to <Company> for …")
+    3. a job-board confirmation card
+    4. subject phrasing ("<Company>: Next steps", "… at <Company>")
+    5. the sender's display name (never a person's name or an HR department)
+    6. body phrasing ("… position at <Company>")
+    7. the sender's domain
+
+    A later candidate that is the same name written in full ('Jati Holdings' ->
+    'Jati Holdings Berhad') upgrades the winner.
+    """
+    subj_company, _ = parse_subject(subject)
+    subject_text_company, _ = extract_company_role(subject)
+    candidates = [
+        company_from_sender_domain(sender, f"{subject}\n{first_message(body)}" if body else subject),
+        subj_company,
+        card_company,
+        subject_text_company,
+        company_from_bracket(subject) or strip_platform_suffix(company_from_display_name(sender)),
+        body_company,
+        company_from_domain(sender),
+    ]
+    good = [clean_company_name(c) for c in candidates if c]
+    good = [c for c in good if _good_company(c)]
+    if not good:
+        return ""
+    chosen = good[0]
+    for other in good[1:]:
+        if (other.lower().startswith(chosen.lower() + " ")
+                and len(other.split()) - len(chosen.split()) <= 3):
+            chosen = other
+    return chosen
+
+
+def resolve_role(subject: str, company: str, card_role: str = "", body_role: str = "") -> str:
+    subj_role = parse_subject(subject)[1]
+    _, subject_text_role = extract_company_role(subject)
+    for candidate in (subj_role, card_role, subject_text_role, role_from_subject(subject),
+                      role_from_subject_segments(subject, company), body_role):
+        candidate = clean_role_name(candidate or "")
+        if _good_role(candidate) and candidate.lower() != (company or "").lower():
+            return candidate
+    return ""
+
+
 def parse_message(meta: dict, body_text: str = "") -> ParsedMessage:
     subject = meta.get("subject") or "(no subject)"
     sender = meta.get("from", "")
     snippet = meta.get("snippet", "")
 
-    subj_company, subj_role = parse_subject(subject)
     verdict = classify_message(sender, subject, snippet)
+    company = resolve_company(sender, subject)
     record = ParsedMessage(
         message_id=meta.get("id", ""),
         thread_id=meta["thread_id"],
         message_date=message_date(meta),
-        company_name=subj_company or company_from_sender(sender, subject),
-        role_title=subj_role or role_from_subject(subject),
+        company_name=company,
+        role_title=resolve_role(subject, company),
         source_platform=detect_platform(sender),
         detected_status=detect_status(f"{subject} {snippet}"),
         is_valid=verdict.is_valid,
@@ -132,22 +199,14 @@ def parse_message(meta: dict, body_text: str = "") -> ParsedMessage:
         # Generic subjects ("Your application was successfully submitted") hide the employer;
         # the body usually names it. The sanitised text has no URLs, so a link can never be
         # captured as a company name.
+        card_company, card_role = company_role_from_card(body_text)
         body_company, body_role = extract_company_role(sanitized)
-        if body_company and not is_platform_company(body_company) and (
-                not record.company_name or is_platform_company(record.company_name)):
-            record.company_name = body_company
-        if is_platform_company(record.company_name):
-            # Platform senders often name the employer only in the subject
-            # ("…, your application was sent to Acme").
-            subject_company, _ = extract_company_role(subject)
-            if subject_company:
-                record.company_name = subject_company
+        record.company_name = resolve_company(sender, subject, body_text, card_company,
+                                              body_company)
         if not body_role:
-            known = record.company_name if not is_platform_company(record.company_name) else ""
-            body_role = role_from_application_snippet(sanitized, known or body_company)
-        if body_role and (not record.role_title or not looks_like_role(record.role_title)
-                          or record.role_title.lower() == subject.lower()):
-            record.role_title = body_role
+            body_role = role_from_application_snippet(
+                sanitized, record.company_name or body_company)
+        record.role_title = resolve_role(subject, record.company_name, card_role, body_role)
         # Body evidence is stronger than the subject, but never downgrades it.
         body_status = detect_status(sanitized)
         if body_status and DETECTION_RANK[body_status] >= DETECTION_RANK.get(record.detected_status, -1):
@@ -156,6 +215,12 @@ def parse_message(meta: dict, body_text: str = "") -> ParsedMessage:
         missing_fields = not (record.company_name and record.role_title and record.detected_status)
         second_chance = record.filter_reason == NO_AFFIRMATION
         record.needs_body = record.is_valid or missing_fields or second_chance
+
+    # Assessment vendors (HackerRank, SHL, …) only write about tests: a reminder or an
+    # extension from one is an assessment-stage email even without "assessment" wording.
+    if (record.is_valid and DETECTION_RANK.get(record.detected_status, 0) < DETECTION_RANK[ASSESSMENT]
+            and any(v in sender.lower() for v in ASSESSMENT_VENDOR_SENDERS)):
+        record.detected_status = ASSESSMENT
 
     finalize(record, snippet)
     return record
@@ -166,8 +231,10 @@ def finalize(record: ParsedMessage, snippet: str = "") -> ParsedMessage:
     if not record.company_name:
         record.company_name = company_fallback(record.sender)
     if not record.role_title:
-        # Only fall back to the subject when it actually reads like a job title.
-        record.role_title = record.subject if looks_like_role(record.subject) else ""
+        # Only fall back to the subject when it is a bare job title — never "Next steps",
+        # "Following up" or a notification sentence.
+        subject = record.subject
+        record.role_title = subject if _good_role(subject) and len(subject) <= 80 else ""
     record.company_name, record.role_title = refine_company_role(
         record.company_name, record.role_title, record.subject)
     if not looks_like_role(record.role_title) and record.job_url:
@@ -180,7 +247,7 @@ def finalize(record: ParsedMessage, snippet: str = "") -> ParsedMessage:
         company = fallback if (fallback and not is_platform_company(fallback)) else "Unknown"
     record.company_name = company
     role = clean_role_name(record.role_title)
-    record.role_title = role if looks_like_role(role) else ""
+    record.role_title = role if looks_like_role(role) and not is_decorated(role) else ""
     if not record.message_date:
         record.notes.append("no message date")
     cat_text = f"{record.role_title} {record.subject} {snippet}"
