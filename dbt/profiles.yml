@@ -1,0 +1,9 @@
+# The warehouse file the app builds. Point JOBTRACKER_WAREHOUSE at another file to run dbt
+# against the demo warehouse (CI does this).
+jobtracker:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      path: "{{ env_var('JOBTRACKER_WAREHOUSE', '../data/warehouse.duckdb') }}"
+      threads: 4
