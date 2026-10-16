@@ -41,7 +41,7 @@ noise = repo.noise()
 with ui.section(1, "Check the email reader's work",
                 f"{len(queue)} email{'s' if len(queue) != 1 else ''} worth a quick look"
                 if queue else "Nothing needs checking"):
-    ui.explain("The email reader is sure about almost everything. When it was unsure whether "
+    ui.aside("The email reader is sure about almost everything. When it was unsure whether "
                "an email was a real application, or who the employer was, it lands here. One "
                "click confirms or corrects it, and it never asks about that email again.")
     if not queue:
@@ -135,7 +135,7 @@ with ui.section(2, "Syncing", "Your tracker keeps itself up to date"):
 
 # ---------------------------------------------------------------- rules
 with ui.section(3, "Rules", "When silence becomes a status"), st.form("rules", border=False):
-    ui.explain("These decide when the app suggests a follow-up and when it gives up on an "
+    ui.aside("These decide when the app suggests a follow-up and when it gives up on an "
                "application. Follow-up timing changes every page straight away; the ghosting "
                "rule applies on the next sync.")
     c1, c2 = st.columns(2, gap="large")
@@ -161,7 +161,7 @@ with ui.section(3, "Rules", "When silence becomes a status"), st.form("rules", b
 # ---------------------------------------------------------------- Claude review
 spend = repo.llm_spend()
 with ui.section(4, "Claude review (optional)", "A second opinion for the hard emails"):
-    ui.explain("Off unless you turn it on. Only emails the rules are unsure about are sent, "
+    ui.aside("Off unless you turn it on. Only emails the rules are unsure about are sent, "
                "each one once, and it stops at your monthly budget. On Claude Haiku it costs "
                "about US$0.0001 per email.")
     left, right = st.columns([7, 5], gap="large")
@@ -189,7 +189,7 @@ with ui.section(4, "Claude review (optional)", "A second opinion for the hard em
 
 # ---------------------------------------------------------------- maintenance
 with ui.section(5, "Maintenance", "Tidy-ups you rarely need"):
-    ui.explain("Every job that changes data takes a backup first.")
+    ui.aside("Every job that changes data takes a backup first.")
     c1, c2, c3 = st.columns(3, gap="large")
     with c1:
         ui.subhead("Fix names and roles")
@@ -255,7 +255,7 @@ def _size(path: Path) -> str:
 
 
 with ui.section(6, "Storage", "Where your data lives"):
-    ui.explain("Everything stays on this computer. Your Google sign-in files (credentials.json, "
+    ui.aside("Everything stays on this computer. Your Google sign-in files (credentials.json, "
                "token.json) are read from the data folder and never shown here.")
     ui.facts([
         ("Data folder", str(s.data_dir)),

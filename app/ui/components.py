@@ -226,6 +226,11 @@ def explain(how: str, means: str = "") -> None:
     render(f'<div class="jt-explain"><p><b>How to read it.</b> {how}</p>{means_html}</div>')
 
 
+def aside(text_html: str) -> None:
+    """The same quiet box as ``explain`` for plain guidance that is not about a chart."""
+    render(f'<div class="jt-explain"><p>{text_html}</p></div>')
+
+
 def term(word: str, meaning: str) -> str:
     """A word with a dotted underline that explains itself on hover."""
     return f'<abbr class="jt-term" title="{esc(meaning)}">{esc(word)}</abbr>'
