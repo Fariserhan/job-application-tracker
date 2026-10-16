@@ -63,6 +63,10 @@ dates.
 
 ### Sync automatically (optional)
 
+The app already syncs by itself when you open it, if the last sync is more than 6 hours old
+(change or turn this off in **Settings → Syncing**). To have it sync even when the app is
+closed:
+
 Double-click **`auto_sync.bat`** once. Windows then reads your new job emails every morning
 at 9:00 and each time you sign in, with no window popping up, so the tracker is already up
 to date when you open it. Each run adds one line to `sync.log` in your data folder. Run

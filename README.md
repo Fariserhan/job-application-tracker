@@ -17,6 +17,14 @@ layer, a Streamlit app, a written findings report and an Excel / Power BI / Tabl
 _Screenshots use the synthetic demo dataset: a generated inbox run through the real
 pipeline. No real application data is in this repository._
 
+## Why
+
+Keeping a job-search spreadsheet up to date by hand is tedious, so this does it for me. I
+click **Sync Gmail** (or let it sync on its own every morning) and it finds every
+application, follows each one through assessment, interview, offer, rejection or silence,
+and turns the lot into analysis I can act on: which channels get replies, how long
+employers take, who to chase today.
+
 ## What it does
 
 1. **Reads my job-application email** from Gmail (read-only OAuth), quota-aware and
@@ -43,13 +51,22 @@ pipeline. No real application data is in this repository._
 | ![Pipeline](docs/screenshots/pipeline.png) | **Pipeline**: kanban and table views, a per-application timeline built from the event log, notes, manual corrections, and logging applications that never sent an email. |
 | ![Data & model](docs/screenshots/data-model.png) | **Data & model**: the live dbt lineage graph, data-test results, coverage audit, the noise-filter audit and every metric's SQL. |
 
+**Everything is clickable.** Click any number, bar, dot or row (say "22 interviews") and the
+exact applications behind it open in place; click one and its full history, one-click status
+changes, undo, notes and fixes are right there. Every chart carries a plain-English "how to
+read it" and "what it means for you", charts never zoom by accident, and the layout holds up
+on a laptop and a phone. After each sync, the Overview opens with what changed.
+
 The app is laid out like a data-journalism page. Every section leads with a sentence
 written from the data, charts are titled with their takeaway, and the page builds up in
 sequence: the headline underlines itself, numbers count up and the Sankey flows stage by
-stage. All of this is switched off under `prefers-reduced-motion`. The palette is checked for colour-blind separation, and the Excel / Power BI / Tableau pack
-uses the same one.
+stage, on a page's first view only. Motion is off under `prefers-reduced-motion`. The
+palette is checked for colour-blind separation, and the Excel / Power BI / Tableau pack uses
+the same one.
 
-Plus **Follow-ups** (who to chase, with draft emails), **Settings**, a written findings
+Plus **Follow-ups** (who to chase, with a ready-to-send email for each), **Settings** (a
+one-click review queue for the few emails the parser was unsure about, rescue for anything
+filtered by mistake, sync schedule and rules), a written findings
 report (`python -m jobtracker report` → [sample](docs/sample-report.md)), and a BI pack
 (`python -m jobtracker export`): an Excel workbook with live formulas and native charts,
 star-schema CSVs, DAX measures, a Power BI theme and Tableau calculated fields. See
