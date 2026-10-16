@@ -61,6 +61,14 @@ After migrating, run **Settings → Full re-parse** once (or `jobtracker sync --
 email is re-judged by the current rules and the status-event log is rebuilt with real email
 dates.
 
+### Sync automatically (optional)
+
+Double-click **`auto_sync.bat`** once. Windows then reads your new job emails every morning
+at 9:00 and each time you sign in, with no window popping up, so the tracker is already up
+to date when you open it. Each run adds one line to `sync.log` in your data folder. Run
+`auto_sync.bat off` to stop it. If Google ever asks you to sign in again, the background run
+skips (it never opens a browser) until you click **Sync Gmail** in the app once.
+
 ## 4. Optional: Claude fallback for ambiguous emails
 
 Off by default. When on, only emails the rules mark as ambiguous are sent (subject, sender

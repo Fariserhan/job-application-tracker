@@ -84,13 +84,13 @@ class GmailClient:
         self.pacer = AdaptivePacer(interval=max(base, 0.35), floor=max(base * 0.75, 0.25))
 
     @classmethod
-    def from_settings(cls, settings) -> GmailClient:
+    def from_settings(cls, settings, interactive: bool = True) -> GmailClient:
         from googleapiclient.discovery import build
 
         from .auth import get_credentials
 
         creds = get_credentials(settings.secret_path("credentials.json"),
-                                settings.secret_path("token.json"))
+                                settings.secret_path("token.json"), interactive=interactive)
         return cls(build("gmail", "v1", credentials=creds, cache_discovery=False), creds)
 
     # ------------------------------------------------------------------ core
