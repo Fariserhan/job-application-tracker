@@ -118,7 +118,7 @@ the first application, or 30 days ago, to the build date).
 | 3 Reliability | Response Rate CI Low % / High %, Interview Rate CI Low % / High % (Wilson score intervals written in DAX), Sample Confidence, Response Band |
 | 4 Timing | Median Days To Response, Average Days To Response, Responses With Known Reply Date, Median Days To Interview, Follow-up Threshold (days), Needs Follow-up, Responses (by Reply Date), Applications Touched (by Activity Date), Status Changes (by Event Date), Last 30d / Prev 30d Response Rate % |
 | 5 Channels | Platform Response Rank, Overall Response Rate %, Response Rate vs Overall (pp), Interview Rate vs Direct Benchmark (pp) |
-| 6 Benchmarks | Direct / Job Board Interview Benchmark %, Benchmark Responses / Interviews / Offers per 100 (Low, High, Mid) |
+| 6 Benchmarks | Direct / Job Board Interview Benchmark %, Benchmark Interviews / Offers per 100 (Low, High, Mid) |
 
 Patterns worth pointing out in an interview:
 
@@ -216,7 +216,6 @@ SWITCH (
 Stage Benchmark (Mid) =
 SWITCH (
     SELECTEDVALUE ( 'Funnel Stages'[Stage] ),
-    "Employer responded", [Benchmark Responses per 100 (Mid)],
     "Interview", [Benchmark Interviews per 100 (Mid)],
     "Offer", [Benchmark Offers per 100 (Mid)]
 )
@@ -224,7 +223,6 @@ SWITCH (
 Stage vs Benchmark =
 SWITCH (
     SELECTEDVALUE ( 'Funnel Stages'[Stage] ),
-    "Employer responded", [Responses vs Benchmark],
     "Interview", [Interviews vs Benchmark],
     "Offer", [Offers vs Benchmark]
 )

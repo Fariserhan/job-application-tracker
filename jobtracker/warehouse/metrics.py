@@ -151,17 +151,16 @@ SELECT
 FROM windows
 """
 
-_resp_lo, _resp_hi = bm.FUNNEL_PER_100["Employer responded"]
 _int_lo, _int_hi = bm.FUNNEL_PER_100["Interview"]
 _off_lo, _off_hi = bm.FUNNEL_PER_100["Offer"]
 SQL["funnel"] = f"""
 -- The application funnel on the furthest stage reached, with stage-to-stage conversion
--- (LAG) and the published "per 100 applications" benchmark next to every stage.
+-- (LAG) and the published "per 100 applications" benchmark where one exists.
 WITH stages AS (
     SELECT 1 AS stage_order, 'Applied' AS stage, COUNT(*) AS applications,
            NULL::DOUBLE AS bench_lo, NULL::DOUBLE AS bench_hi FROM base
     UNION ALL SELECT 2, 'Employer responded', COUNT(*) FILTER (WHERE is_response),
-           {_resp_lo}, {_resp_hi} FROM base
+           NULL, NULL FROM base
     UNION ALL SELECT 3, 'Assessment', COUNT(*) FILTER (WHERE reached_assessment),
            NULL, NULL FROM base
     UNION ALL SELECT 4, 'Interview', COUNT(*) FILTER (WHERE reached_interview),

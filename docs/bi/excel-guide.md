@@ -71,7 +71,7 @@ Why these are correct:
   can be checked by hand.
 
 Defined names: `kpi_*` (one per KPI), and on the Benchmarks sheet `DirectInterviewBenchmark`,
-`JobBoardInterviewBenchmark`, `BenchRespLo/Hi`, `BenchIntLo/Hi`, `BenchOfferLo/Hi`,
+`JobBoardInterviewBenchmark`, `BenchIntLo/Hi`, `BenchOfferLo/Hi`,
 `SampleAdequate`, `SampleIndicative`, `WilsonZ`, `FollowUpDays`, `GhostAfterDays`
 (**Formulas > Name Manager** lists them all).
 

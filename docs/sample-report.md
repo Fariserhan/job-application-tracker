@@ -1,6 +1,6 @@
 # Job search analysis — synthetic demo data
 
-_Generated 16 October 2026 from the analytics warehouse (2026-10-16T16:33:56). Every figure comes from the SQL metric layer; rates carry 95% Wilson intervals._
+_Generated 16 October 2026 from the analytics warehouse (2026-10-16T16:41:47). Every figure comes from the SQL metric layer; rates carry 95% Wilson intervals._
 
 > **Demo dataset.** These numbers describe the synthetic mailbox that ships with the project, generated to exercise the real pipeline. They are not a real person's job search. Run `python -m jobtracker report` on your own data for a real analysis.
 
@@ -20,7 +20,7 @@ Stages count the **furthest stage ever reached**, so an application rejected aft
 | Stage | Applications | % of applied | Step conversion % | vs benchmark |
 |---|---|---|---|---|
 | Applied | 168 | 100.0 | – | – |
-| Employer responded | 42 | 25.0 | 25.0 | Ahead |
+| Employer responded | 42 | 25.0 | 25.0 | – |
 | Assessment | 31 | 18.5 | 73.8 | – |
 | Interview | 22 | 13.1 | 71.0 | Ahead |
 | Offer | 3 | 1.8 | 13.6 | Ahead |
