@@ -4,7 +4,7 @@ name: Publish dbt docs
 # One-time setup: repository Settings -> Pages -> Source: "GitHub Actions".
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
