@@ -11,7 +11,7 @@ from .mailbox import DemoMailbox
 MANUAL_ENTRIES = [
     # (company, role, platform, days ago, status, note)
     ("Seroja Insurance Berhad", "Pricing Analyst", "Referral", 12, "Interview",
-     "Referred by a former lecturer — panel interview booked."),
+     "Referred by a former lecturer. Panel interview booked."),
     ("Kasturi Analytics", "Data Analyst", "Company Site", 5, "Applied",
      "Applied on the careers page; no confirmation email."),
     ("Tanjung Re", "Graduate Actuarial Analyst", "Company Site", 40, "Rejected",

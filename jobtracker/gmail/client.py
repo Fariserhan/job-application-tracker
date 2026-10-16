@@ -308,7 +308,7 @@ def extract_body(payload: dict) -> str:
     """All text parts plus every HTML link.
 
     Gmail's multipart/alternative often ships a thin text/plain stub next to the real HTML,
-    and job platforms hide the posting link behind an HTML button — appending the hrefs means
+    and job platforms hide the posting link behind an HTML button. Appending the hrefs means
     the parser always sees the link (noise links are scored out later).
     """
     plain: list[str] = []

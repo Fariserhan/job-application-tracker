@@ -9,7 +9,7 @@ venv\Scripts\python.exe -m pip install -r requirements.txt
 
 macOS / Linux: `python3 -m venv venv && venv/bin/pip install -r requirements.txt`.
 
-Try it without Gmail first — the demo builds a synthetic inbox and runs it through the real
+Try it without Gmail first. The demo builds a synthetic inbox and runs it through the real
 pipeline:
 
 ```bat
@@ -52,8 +52,8 @@ mailbox once so every email is judged by the current parser (a few minutes); lat
 fetch new mail.
 
 Data needs nothing. If `applications.db` is still in the project root, the app keeps using the
-root as its data directory. On first start the schema is migrated in place to v2 — after an
-automatic backup in `backups\<timestamp>-pre-v2-migration\` — your notes, manual
+root as its data directory. On first start the schema is migrated in place to v2, after an
+automatic backup in `backups\<timestamp>-pre-v2-migration\`. Your notes, manual
 corrections and status history are preserved. To move to the new layout, move
 `applications.db`, `sync_state.json`, `credentials.json` and `token.json` into `data\`.
 

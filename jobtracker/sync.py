@@ -81,7 +81,7 @@ class SyncEngine:
         if len(ids) >= self.settings.gmail_max_results:
             summary.truncated = True
             summary.warnings.append(f"Search hit the {self.settings.gmail_max_results}-message "
-                                    "cap — raise gmail_max_results to see older mail.")
+                                    "cap. Raise gmail_max_results to see older mail.")
 
         latest = int(watermark or 0)
         if ids:
@@ -94,8 +94,8 @@ class SyncEngine:
             summary.new_messages = len(unseen)
 
             # Bodies: new mail that needs one, plus (on a full re-parse) every non-blacklisted
-            # message so improved rules can re-judge old mail — from the local cache when
-            # possible, re-downloaded once otherwise.
+            # message so improved rules can re-judge old mail. They come from the local cache
+            # when possible and are re-downloaded once otherwise.
             wanted = [meta["id"] for meta, rec in first_pass
                       if (meta["id"] in unseen and rec.needs_body)
                       or (full and not rec.filter_reason.startswith("blacklist"))]
@@ -180,7 +180,7 @@ def reparse_from_cache(settings: Settings) -> int:
             "FROM processed_messages ORDER BY message_date").fetchall()
     for row in rows:
         if not row["body_text"] or not row["subject"]:
-            continue  # v1 rows cached no subject — a Gmail full re-parse refreshes them
+            continue  # v1 rows cached no subject; a Gmail full re-parse refreshes them
         meta = {"id": row["message_id"], "thread_id": row["thread_id"],
                 "subject": row["subject"], "from": row["sender"], "snippet": "",
                 "internal_date": 0, "date_header": ""}

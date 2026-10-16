@@ -1,4 +1,4 @@
-"""The data dictionary and the star-schema model spec — written once, used by every surface.
+"""The data dictionary and the star-schema model spec. Written once, used by every surface.
 
 ``COLUMNS`` describes every column the warehouse exposes to BI tools. The Excel data
 dictionary, ``powerbi/model.json`` and the README are generated from it, and

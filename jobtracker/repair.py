@@ -110,7 +110,7 @@ def run(settings: Settings, apply: bool = False) -> tuple[list[dict], dict]:
     for fix in plan:
         tid = fix["thread_id"]
         if "is_valid" in fix:
-            # Repair verdicts are not 'manual' — a later email can still prove otherwise.
+            # Repair verdicts are not 'manual', so a later email can still prove otherwise.
             with repo.connect() as conn:
                 conn.execute("UPDATE applications SET is_valid=?, filter_reason=? WHERE thread_id=?",
                              (1 if fix["is_valid"] else 0, fix["reason"], tid))

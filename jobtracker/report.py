@@ -1,9 +1,9 @@
-"""Written findings report: the job search, analysed — generated from the metric layer.
+"""Written findings report: the job search, analysed. Generated from the metric layer.
 
 ``python -m jobtracker report`` turns the warehouse into a Markdown analysis a reader can
 act on: headline, funnel vs benchmark, which channels work (with confidence intervals),
 how long employers take (Kaplan–Meier), cohort trend, segments, and the caveats. Every
-number is read from ``Metrics`` — the same SQL the app, the workbook and the BI pack use.
+number is read from ``Metrics``, the same SQL the app, the workbook and the BI pack use.
 
 Statements are deliberately hedged by sample size: a finding is only called a finding
 when the confidence intervals say so.
@@ -78,7 +78,7 @@ def build_report(settings, filters: Filters | None = None, demo: bool = False) -
 
     n = int(k.get("applications") or 0)
     lines: list[str] = []
-    title = "Job search analysis" + (" — synthetic demo data" if demo else "")
+    title = "Job search analysis" + (" (synthetic demo data)" if demo else "")
     lines += [f"# {title}", "",
               f"_Generated {date.today():%d %B %Y} from the analytics warehouse "
               f"({built.get('built_at', 'unknown build')}). Every figure comes from the SQL "
@@ -89,7 +89,7 @@ def build_report(settings, filters: Filters | None = None, demo: bool = False) -
                   "real person's job search. Run `python -m jobtracker report` on your own "
                   "data for a real analysis.", ""]
     if n == 0:
-        return "\n".join([*lines, "No applications yet — run a sync first."])
+        return "\n".join([*lines, "No applications yet. Run a sync first."])
 
     # ------------------------------------------------------------------ headline
     lines += ["## Headline", "",
@@ -97,7 +97,7 @@ def build_report(settings, filters: Filters | None = None, demo: bool = False) -
               f"{pd.Timestamp(k['first_applied']):%d %b %Y} and "
               f"{pd.Timestamp(k['last_applied']):%d %b %Y}.",
               f"- **{_pct(k['response_rate_pct'])} got an employer response** "
-              f"(95% CI {_pct(k['response_rate_lo'])}–{_pct(k['response_rate_hi'])}) — "
+              f"(95% CI {_pct(k['response_rate_lo'])}–{_pct(k['response_rate_hi'])}). That is "
               f"**{k['response_band']}** against the published bands "
               f"(<2% below average · 2–3% average · 3–5% good · 5%+ strong).",
               f"- **{_pct(k['interview_rate_pct'])} reached an interview** "
@@ -170,7 +170,7 @@ def build_report(settings, filters: Filters | None = None, demo: bool = False) -
 
     # ------------------------------------------------------------------ cohorts & segments
     lines += ["## Monthly cohorts", "",
-              "Recent cohorts are still maturing — their rates are floors, not final.", "",
+              "Recent cohorts are still maturing, so treat their rates as floors.", "",
               _table(cohorts, {"cohort_month": "Month", "applications": "Apps",
                                "response_rate_pct": "Response %",
                                "interview_rate_pct": "Interview %", "still_open": "Open"}),

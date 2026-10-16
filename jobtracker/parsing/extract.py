@@ -1,6 +1,6 @@
 """Field extraction: employer, role title, posting link and source platform.
 
-Recruiting mail rarely names the employer cleanly — the sender is often a job board or an
+Recruiting mail rarely names the employer cleanly. The sender is often a job board or an
 ATS tenant ("UOB Workday", "no-reply@myworkday.com"). Extraction therefore runs several
 independent strategies (subject templates, body phrasing, sender display name, sender
 domain, ATS tenant label) and a quality gate that refuses to store a platform name, a
@@ -43,7 +43,7 @@ _SENTENCE_ROLE = re.compile(
     r"\byour (?:job )?application\b|\bapplication (?:was|has been|is)\b|\bwas sent\b|"
     r"^[A-Z][a-z]+(?: [A-Z][a-z]+)?, (?:your|you|we|thanks?|thank you)\b", re.IGNORECASE)
 # A company capture that ran on into the next sentence: "Acme Sdn Bhd. The employer will…"
-# (abbreviation dots inside names are normalised away first — see _ABBREV_DOT).
+# (abbreviation dots inside names are normalised away first; see _ABBREV_DOT).
 _NEXT_SENTENCE = re.compile(r"[.!?]\s+\S.*$")
 _ABBREV_DOT = re.compile(r"\b(Sdn|Pte|Co)\.(?=\s*(?:Bhd|Ltd|Limited|Berhad)\b)", re.IGNORECASE)
 _FREEMAIL = {"gmail", "googlemail", "yahoo", "hotmail", "outlook", "live", "icloud", "me",
@@ -238,7 +238,7 @@ def split_sender(sender: str) -> tuple[str, str, str]:
 def looks_like_person(display: str, local_part: str) -> bool:
     """'Daniel Lim' writing from 'daniel.lim@…' is a person, not an employer.
 
-    The mailbox has to echo the display name ('aisyah.rahman', 'jtan', 'jane') — that is
+    The mailbox has to echo the display name ('aisyah.rahman', 'jtan', 'jane'). That is
     what separates a recruiter's personal address from a company display name like
     'Cendana Wealth <cendanawealth@taleo.net>'.
     """
@@ -490,7 +490,7 @@ def role_from_subject(subject: str) -> str:
         r"(?:application (?:for|received)[:\s-]+)([^|·—-]{3,80})",
         r"(?i)^your candidacy for\s+([^|·—-]{3,80})",
         r"(?:for the role of[:\s-]+|for the position of[:\s-]+|role[:\s-]+)([^|·—()-]{3,80})",
-        # Require real punctuation after "your application" — "Your application was
+        # Require real punctuation after "your application": "Your application was
         # successfully submitted" must NOT become a role.
         r"(?:your application\s*[:\-–—]\s*)([^|·—()-]{3,80})",
         r"(?:position|role)[:\s]+([^|·—()-]{3,80})",

@@ -68,12 +68,12 @@ def cmd_show(args, settings) -> int:
 
     rows = Repository(settings).applications(include_noise=False)
     if not rows:
-        print("No applications yet — run: python -m jobtracker sync")
+        print("No applications yet. Run: python -m jobtracker sync")
         return 0
     print(f"{'Company':<28} {'Role':<34} {'Platform':<12} {'Status':<16} {'Applied':<10}")
     print("-" * 104)
     for r in rows:
-        print(f"{r['company_name'][:27]:<28} {(r['role_title'] or '—')[:33]:<34} "
+        print(f"{r['company_name'][:27]:<28} {(r['role_title'] or '-')[:33]:<34} "
               f"{r['source_platform'][:11]:<12} {r['current_status']:<16} {r['application_date'][:10]}")
     return 0
 

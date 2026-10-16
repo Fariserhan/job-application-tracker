@@ -1,6 +1,6 @@
 """A dependency-free executor for this project's dbt models.
 
-dbt is the development tool (tests, docs, lineage — run in CI). The app only needs the
+dbt is the development tool (tests, docs and lineage, run in CI). The app only needs the
 models *executed*, and shipping dbt-core to every laptop and to the hosted demo would add
 ~100 MB and seconds of start-up for no benefit. This runner executes the very same
 ``dbt/models/**/*.sql`` files against DuckDB:
@@ -10,7 +10,7 @@ models *executed*, and shipping dbt-core to every laptop and to the hosted demo 
 * orders models by their refs (topological sort) and materialises them as tables / views
 * runs the singular data tests in ``dbt/tests`` and reports failing row counts
 
-Anything beyond that Jinja subset is rejected loudly (``UnsupportedJinja``) — and CI runs the
+Anything beyond that Jinja subset is rejected loudly (``UnsupportedJinja``), and CI runs the
 real ``dbt build`` over the same files, so the two can never silently diverge.
 """
 from __future__ import annotations
@@ -72,7 +72,7 @@ def _render(sql: str, origin: str) -> tuple[str, set[str], str | None]:
     rendered = _SOURCE.sub(lambda m: f'"{m.group(1)}"."{m.group(2)}"', rendered)
     if _ANY_JINJA.search(rendered):
         raise UnsupportedJinja(f"{origin}: only ref/source/config are supported by the "
-                               "built-in runner — run real dbt for anything else")
+                               "built-in runner. Run real dbt for anything else.")
     return rendered.strip().rstrip(";"), refs, materialized
 
 

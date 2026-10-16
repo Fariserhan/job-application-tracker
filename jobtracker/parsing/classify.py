@@ -3,9 +3,9 @@
 Strict, ordered tiers (first decisive tier wins):
 
 1. hard blacklist on subject + sender (job alerts, digests, account housekeeping)
-2. strong affirmation (explicit "application received/submitted") — wins over marketing
+2. strong affirmation (explicit "application received/submitted"): wins over marketing
    tails, vetoed only by hard non-job commerce (refunds, trade-ins, accommodation)
-3. weak affirmation (interview / assessment / rejection / offer wording) — vetoed by any
+3. weak affirmation (interview / assessment / rejection / offer wording): vetoed by any
    career-advice or digest signal
 4. loose platform tier: a known ATS / job-board sender whose subject is a bare job title
 
@@ -71,7 +71,7 @@ NON_JOB = "noise (non-job correspondence)"
 class Verdict:
     is_valid: bool
     reason: str
-    confidence: float  # 0..1 — how sure the rules are about `is_valid`
+    confidence: float  # 0..1: how sure the rules are about `is_valid`
 
     @property
     def ambiguous(self) -> bool:
@@ -83,8 +83,8 @@ class Verdict:
 
 
 def is_personal_sender(sender: str) -> bool:
-    """A named person writing from a company (non-freemail) domain — how recruiters and
-    hiring managers write once a process is under way."""
+    """A named person writing from a company (non-freemail) domain. This is how recruiters
+    and hiring managers write once a process is under way."""
     display, local, domain = split_sender(sender)
     if not domain or domain.split(".")[0] in FREEMAIL_DOMAINS or is_platform_sender(sender):
         return False
@@ -150,9 +150,9 @@ def classify_message(sender: str, subject: str, snippet: str = "") -> Verdict:
     if garbage:
         return Verdict(False, CAREER_NOISE, 0.85)
     # Nothing matched. Everything reaching the parser already passed the Gmail job-mail
-    # search, so a miss that still smells of recruiting — a platform sender, recruiting
-    # vocabulary, or a person writing from a company domain ("Jane Tan <jane@acme.io>":
-    # "Next steps") — is a near-miss worth a second look, not a confident drop.
+    # search, so a miss that still smells of recruiting (a platform sender, recruiting
+    # vocabulary, or a person writing from a company domain, e.g. "Jane Tan <jane@acme.io>":
+    # "Next steps") is a near-miss worth a second look rather than a confident drop.
     if is_platform_sender(sender) or _RECRUITING_VOCAB.search(text) or is_personal_sender(sender):
         return Verdict(False, NO_AFFIRMATION, 0.55)
     return Verdict(False, NO_AFFIRMATION, 0.85)

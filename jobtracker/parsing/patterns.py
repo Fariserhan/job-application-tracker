@@ -2,7 +2,7 @@
 
 Pure data: every regex the parser uses lives here, grouped by the decision it feeds.
 They encode a lot of hard-won knowledge about real recruiting mail in Malaysia / SEA
-(JobStreet, Workday tenants, Hiredly, Prosple, LinkedIn, ATS vendors) — edit with a test.
+(JobStreet, Workday tenants, Hiredly, Prosple, LinkedIn, ATS vendors). Edit with a test.
 Behaviour lives in classify.py / extract.py / status.py / categorize.py.
 """
 from __future__ import annotations
@@ -47,7 +47,7 @@ STATUS_KEYWORDS = [
         r"\binvitation to (?:an? )?interview\b",
         r"\binterview (?:invitation|request|confirmation|availability|details|schedule|slot)s?\b",
         r"\binterview (?:has been )?(?:re)?scheduled\b",
-        # A generic "we'd like to invite you" — unless what follows is a test, an assessment
+        # A generic "we'd like to invite you", unless what follows is a test, an assessment
         # centre or an event (those are other stages / not job mail).
         r"\b(?:we(?:'d| would)? ?(?:like|love|be delighted|be pleased) to|"
         r"we(?:'re| are) (?:pleased|delighted|happy|excited) to|"
@@ -217,7 +217,7 @@ GARBAGE_KEYWORDS = [
     r"open to work", r"puzzle", r"verify your (?:email|device|identity|phone|new device)",
     r"shared a (?:post|photo|job|video)", r"and others (?:shared|posted)",
     r"terms (?:of|and)", r"profile (?:photo|name) was",
-    # social "follow" noise — not "the written offer will follow" / "following up"
+    # social "follow" noise (but not "the written offer will follow" / "following up")
     r"\bfollow us\b", r"\bnew followers?\b", r"started following",
     # Recruiter-platform housekeeping & unrelated marketing
     r"job[’']s expiring", r"expired on",
@@ -256,7 +256,7 @@ GARBAGE_KEYWORDS = [
 
 GARBAGE_SENDER_DOMAINS = {"quora", "quora-mail", "digest"}
 
-# Stage 1 — hard blacklist: sponsored / marketing / automated digests.
+# Stage 1 (hard blacklist): sponsored / marketing / automated digests.
 # Matches against SUBJECT + SENDER only (not body) to avoid false positives.
 SPONSOR_BLACKLIST = [
     r"sponsored",
@@ -279,7 +279,7 @@ SPONSOR_BLACKLIST = [
     r"apply now to\b",
     r"invitation to apply",
     r"quora",
-    # Account / identity housekeeping — a task, never an application event
+    # Account / identity housekeeping: a task, never an application event
     r"verify your (?:email|account|candidate|device|details|identity)",
     r"verification (?:code|email|link|process)",
     r"confirm your (?:email|account|identity)",
@@ -302,10 +302,10 @@ SPONSOR_BLACKLIST = [
     r"talent community",
 ]
 
-# Stage 2 — positive affirmation: a message is ONLY valid if it confirms an
+# Stage 2 (positive affirmation): a message is ONLY valid if it confirms an
 # action already taken (an application) or is a direct recruitment response.
 AFFIRMATION_PATTERNS = [
-    # --- Explicit confirmations (STRONG — these win over marketing tails in the body) ---
+    # --- Explicit confirmations (STRONG: these win over marketing tails in the body) ---
     r"thank(?:s| you)(?: so much)? for (?:your )?(?:recent |job )?(?:application|applying|interest|considering)\b",
     r"application (?:was|has been|is|had been) (?:successfully )?(?:received|submitted|sent)",
     r"application [^.,;!?]{0,120}\b(?:received|submitted)\b",
@@ -343,7 +343,7 @@ AFFIRMATION_PATTERNS = [
     r"\b(?:share|forward|pass)(?:ed)? (?:on )?your (?:cv|resume|application) (?:with|to) the "
     r"hiring (?:manager|team)",
     r"terima kasih atas permohonan anda",
-    # --- Direct recruitment responses / status changes (WEAK — garbage veto still applies) ---
+    # --- Direct recruitment responses / status changes (WEAK: garbage veto still applies) ---
     r"invitation to interview",
     r"interview (?:invitation|request|confirmation|availability|details|schedule|slot)s?\b",
     r"\binterview (?:has been )?(?:re)?scheduled\b",
@@ -394,7 +394,7 @@ AFFIRMATION_PATTERNS = [
     r"\bhiring manager (?:would like|wants|will)\b",
     r"\brecruiter (?:will|to|would) (?:reach|contact|be in touch)\b",
     r"\b(?:pre[- ]?employment|background|reference) (?:check|screening)\b",
-    # --- Contextual "offer" — never a bare match (avoids promos like "special offer: RM15.90") ---
+    # --- Contextual "offer", never a bare match (avoids promos like "special offer: RM15.90") ---
     r"\boffer letter\b",
     r"pleased to offer",
     r"offer of employment",
@@ -410,7 +410,7 @@ AFFIRMATION_PATTERNS = [
 ]
 
 STRONG_AFFIRMATION_PATTERNS = [
-    # Application-specific "thank you" — NOT the bare "thanks for subscribing/purchasing".
+    # Application-specific "thank you", NOT the bare "thanks for subscribing/purchasing".
     r"thank(?:s| you)(?: so much)? for[^.\n]{0,60}\b(?:appl(?:ying|ication|y|ied)|"
     r"your (?:recent )?application|considering (?:me|my))\b",
     r"application (?:was|has been|is|had been) (?:successfully )?(?:received|submitted|sent)",
@@ -452,7 +452,7 @@ HARD_GARBAGE = [
     r"\brefund\b", r"trade[- ]?in", r"special offer", r"\bdiscount\b",
     r"brokerage", r"monthly subscription", r"up to \d+% off",
     r"accommodation",
-    # consumer finance — worded for the customer, so "Credit Card Risk Analyst" or "Loan
+    # consumer finance, worded for the customer, so "Credit Card Risk Analyst" or "Loan
     # Operations Executive" job mail is never vetoed
     r"\bcredit card\b(?!(?:\s+[\w-]+){0,3}\s+(?:analyst|manager|executive|specialist|officer|"
     r"associate|lead|intern|engineer|scientist|consultant|role|position|team|risk|"

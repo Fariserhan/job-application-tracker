@@ -2,8 +2,8 @@
 
 The pipeline is modelled as an ordered set of *stages*. An application's current status
 can move backwards out of the positive pipeline (Rejected / Ghosted), so the furthest stage
-it ever reached is tracked separately from where it ended up — that is what makes the
-funnel honest: a rejection after an interview still counts as an interview.
+it ever reached is tracked separately from where it ended up. That way the funnel
+stays accurate: a rejection after an interview still counts as an interview.
 """
 from __future__ import annotations
 

@@ -21,8 +21,14 @@ where git >nul 2>nul
 if errorlevel 1 (
     echo        Git is not installed, so this step is skipped.
 ) else (
-    git pull --ff-only origin master
+    git fetch origin master
     if errorlevel 1 goto :pullfail
+    git merge --ff-only FETCH_HEAD
+    if errorlevel 1 (
+        echo        The history on GitHub was tidied up. Switching to the new version...
+        git reset --keep FETCH_HEAD
+        if errorlevel 1 goto :pullfail
+    )
 )
 
 echo.

@@ -1,7 +1,7 @@
 """Extract-load: the operational SQLite tables -> DuckDB ``raw`` schema (unchanged).
 
-Python reads SQLite (no DuckDB extension download needed — works offline and on locked-down
-networks) and hands DuckDB the rows as DataFrames. Every column is loaded as text so the
+Python reads SQLite (no DuckDB extension download needed, so it works offline and on
+locked-down networks) and hands DuckDB the rows as DataFrames. Every column is loaded as text so the
 staging models own all typing decisions in one place.
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 RAW_TABLES = ("applications", "status_events", "processed_messages")
-# processed_messages carries the body cache — never copy email bodies into the warehouse.
+# processed_messages carries the body cache. Never copy email bodies into the warehouse.
 EXCLUDED_COLUMNS = {"processed_messages": {"body_text"}}
 
 
