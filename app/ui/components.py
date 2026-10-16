@@ -221,9 +221,12 @@ def subhead(title: str, dek: str = "") -> None:
 
 def explain(how: str, means: str = "") -> None:
     """The two plain-English lines every chart carries: how to read it, and what it means
-    for the reader (the takeaway, with an action where there is one). HTML allowed."""
+    for the reader (the takeaway, with an action where there is one). Folded away behind a
+    small "How to read this" toggle so the page stays clean; one click opens it. HTML
+    allowed."""
     means_html = f'<p><b>What it means for you.</b> {means}</p>' if means else ""
-    render(f'<div class="jt-explain"><p><b>How to read it.</b> {how}</p>{means_html}</div>')
+    render(f'<details class="jt-howto"><summary>How to read this</summary>'
+           f'<div><p><b>How to read it.</b> {how}</p>{means_html}</div></details>')
 
 
 def aside(text_html: str) -> None:

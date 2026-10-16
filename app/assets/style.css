@@ -482,6 +482,26 @@
 .jt-explain p { margin: 0; }
 .jt-explain p + p { margin-top: 0.3rem; }
 .jt-explain b { color: var(--jt-ink); font-weight: 600; }
+details.jt-howto { margin: 0.1rem 0 0.7rem; }
+details.jt-howto > summary {
+  list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.8rem; font-weight: 600; color: var(--jt-accent); user-select: none;
+}
+details.jt-howto > summary::-webkit-details-marker { display: none; }
+details.jt-howto > summary::before {
+  content: ""; width: 0.42rem; height: 0.42rem; border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor; transform: rotate(-45deg);
+  transition: transform var(--jt-fast) var(--jt-ease);
+}
+details.jt-howto[open] > summary::before { transform: rotate(45deg); }
+details.jt-howto > summary:hover { text-decoration: underline; text-underline-offset: 3px; }
+details.jt-howto > div {
+  margin-top: 0.5rem; padding: 0.7rem 0.9rem; background: var(--jt-sunk);
+  border-left: 2px solid var(--jt-accent); font-size: 0.88rem; line-height: 1.55; color: var(--jt-ink-2);
+}
+details.jt-howto p { margin: 0; }
+details.jt-howto p + p { margin-top: 0.3rem; }
+details.jt-howto b { color: var(--jt-ink); font-weight: 600; }
 .jt-term { text-decoration: underline dotted var(--jt-ink-3); text-underline-offset: 3px; cursor: help; }
 .jt-i {
   display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em;
@@ -501,6 +521,10 @@
 .st-key-jt-kpis [data-testid="stColumn"] > [data-testid="stVerticalBlock"] { height: 100%; }
 .st-key-jt-kpis [data-testid="stColumn"]:first-child .stButton { padding-left: 0; }
 .st-key-jt-kpis .stButton button p { font-size: 0.8rem; color: var(--jt-accent); font-weight: 600; }
+/* The Sync button is the app's main action: a touch larger than the rest of the masthead. */
+.st-key-jt-sync button { padding: 0.45rem 1.1rem; box-shadow: 0 2px 10px rgba(29, 63, 187, 0.22); }
+.st-key-jt-sync button p { font-weight: 600; }
+.st-key-jt-mast { flex-wrap: wrap; row-gap: 0.5rem; }
 
 /* Pills: outcome boxes under the flow chart, months, status counts, filter chips. */
 .st-key-jt-outcomes button, .st-key-jt-months button, .st-key-jt-countbar button, .st-key-jt-chips button {
