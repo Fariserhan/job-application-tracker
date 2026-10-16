@@ -53,8 +53,9 @@ notes = narrative.notes(k, platforms, channels, queue, marks, period, s)
 best = narrative.best_platform(platforms)
 
 ui.lede("Your job search so far", narrative.lede_segments(k),
-        "Everything here is read from your Gmail automatically. Hover any (i) for what a number "
-        "means, and click any number, bar or dot to see the applications behind it.")
+        "Everything here is read from your Gmail automatically. Click any number, bar or dot "
+        "to see the applications behind it. Hover an (i), or open \"How to read this\" under a "
+        "chart, for a plain-English explanation.")
 
 # ---------------------------------------------------------------- headline numbers
 change = int(period.get("change") or 0)

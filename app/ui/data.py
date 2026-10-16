@@ -48,10 +48,18 @@ class Runtime:
     demo: bool = False
     demo_reason: str = ""
     warnings: tuple[str, ...] = field(default_factory=tuple)
+    # Your own data folder, when the demo is only shown because nothing has been synced
+    # into it yet. Sync Gmail writes there, so the button is never taken away from you.
+    real: Settings | None = None
 
     @property
     def can_sync_gmail(self) -> bool:
-        return not self.demo
+        return not self.demo or self.real is not None
+
+    @property
+    def sync_settings(self) -> Settings:
+        """Where a Gmail sync writes: your data folder, never the demo's."""
+        return self.real or self.settings
 
 
 def _truthy(value: str | None) -> bool:
@@ -128,7 +136,7 @@ def _resolve() -> Runtime:
     if not base.db_path.exists():
         path = _ensure_demo(str(demo_dir()), date.today().isoformat())
         return Runtime(load_settings(path), True,
-                       f"no applications.db in {base.data_dir} yet")
+                       f"no applications.db in {base.data_dir} yet", real=base)
     if holds_demo_data(base):
         return Runtime(base, True, "this data directory holds the synthetic demo")
     if not base.warehouse_path.exists():
@@ -516,9 +524,9 @@ def show_flash() -> None:
         st.toast(queued[0], icon=queued[1])
 
 
-def last_sync() -> str | None:
+def last_sync(where: Settings | None = None) -> str | None:
     try:
-        return Repository(settings()).load_state().get("last_sync_at")
+        return Repository(where or settings()).load_state().get("last_sync_at")
     except Exception:
         return None
 

@@ -149,8 +149,8 @@ def test_demo_mode_when_data_dir_has_no_database(tmp_path):
         at = _open()
         assert not at.exception, [e.value for e in at.exception]
         text = _texts(at)
-        assert "made-up data run through the real pipeline" in text
-        assert "Regenerate demo" in text and "Sync Gmail" not in text
+        assert "until your first sync" in text  # demo data shown, clearly labelled
+        assert "Sync Gmail" in text  # but your own sync is never taken away
         assert (demo_cache / "applications.db").exists()
         assert not (empty / "applications.db").exists()  # the user's dir is never written
 
@@ -268,3 +268,34 @@ def test_stale_modules_are_reloaded_after_an_update(tmp_path):
         assert "jobtracker._fresh_probe" not in sys.modules
     finally:
         sys.modules.pop("jobtracker._fresh_probe", None)
+
+
+def test_sync_button_shows_even_before_the_first_sync(tmp_path):
+    """With no database yet the app shows demo data, but Sync Gmail must stay available and
+    write to the user's own folder (only the hosted JOBTRACKER_DEMO site hides it)."""
+    empty = tmp_path / "mine"
+    empty.mkdir()
+    with app_env(JOBTRACKER_DATA_DIR=str(empty), JOBTRACKER_DEMO_DIR=str(tmp_path / "demo")):
+        at = _open()
+        assert not at.exception, [e.value for e in at.exception]
+        labels = [str(b.label) for b in at.button]
+        assert "Sync Gmail" in labels and "Regenerate demo" not in labels
+        assert "until your first sync" in _texts(at)
+        from app.ui import data as appdata
+        rt = appdata._resolve()
+        assert rt.can_sync_gmail and rt.sync_settings.data_dir == empty.resolve()
+
+
+def test_chart_explanations_are_folded_away_by_default():
+    from app.ui import components as ui
+
+    captured = []
+    original = ui.render
+    ui.render = captured.append
+    try:
+        ui.explain("Read it left to right.", "Chase the quiet ones.")
+    finally:
+        ui.render = original
+    html_out = captured[0]
+    assert html_out.startswith("<details") and " open" not in html_out.split(">")[0]
+    assert "How to read this" in html_out

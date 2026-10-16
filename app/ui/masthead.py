@@ -101,7 +101,7 @@ def _auto_sync_due(settings) -> bool:
 def run_gmail_sync(full: bool = False, auto: bool = False) -> None:
     """Live sync with staged progress, then a fresh run so every page (and the "since your
     last sync" panel) shows the new data. ``auto`` syncs never open a Google sign-in."""
-    settings = data.settings()
+    settings = data.runtime().sync_settings
     label = ("Checking Gmail for new job emails…" if auto else
              "Re-reading your whole mailbox…" if full else "Syncing Gmail…")
     with st.status(label, expanded=not auto) as status:
@@ -190,17 +190,20 @@ def render(rt: data.Runtime, show_filters: bool = True) -> None:
             with st.popover(f"Filter · {count}" if count else "Filter",
                             icon=":material/tune:", width="content"):
                 _filter_panel()
-        if rt.demo:
-            clicked = st.button("Regenerate demo", icon=":material/autorenew:",
-                                help="Rebuilds the synthetic dataset through the real "
-                                     "pipeline. Gmail sync is disabled in the demo.")
-        else:
+        regenerate = False
+        if rt.can_sync_gmail:
             clicked = st.button("Sync Gmail", icon=":material/sync:", type="primary",
-                                help="Incremental: only mail since the last sync is fetched.")
+                                key="jt-sync",
+                                help="Reads your new job emails and updates everything.")
+        else:
+            regenerate = st.button("Regenerate demo", icon=":material/autorenew:",
+                                   help="Rebuilds the made-up demo data. This public demo "
+                                        "cannot read anyone's Gmail.")
 
     today = date.today()
     bits = [f"<span>{today:%A} {today.day} {today:%B %Y}</span>",
-            f"<span>Last sync <b>{ui.esc(data.humanize_since(data.last_sync()))}</b></span>"]
+            f"<span>Last sync <b>{ui.esc(data.humanize_since(data.last_sync(rt.sync_settings)))}"
+            "</b></span>"]
     background = data.background_sync_status()
     if background:
         text, tone = background
@@ -208,12 +211,17 @@ def render(rt: data.Runtime, show_filters: bool = True) -> None:
     summary = _filter_summary() if show_filters else ""
     if summary:
         bits.append(f"<span>Filtered to <b>{ui.esc(summary)}</b></span>")
-    if rt.demo:
+    if rt.demo and rt.real is not None:
+        bits.append('<span class="jt-demo"><i>Demo</i>: you are looking at made-up data until '
+                    'your first sync. Click <b>Sync Gmail</b> to read your own job emails.</span>')
+    elif rt.demo:
         bits.append('<span class="jt-demo"><i>Demo</i>: made-up data run through the real '
                     'pipeline; no real applications are shown.</span>')
     st.html(f'<div class="jt-meta">{"".join(bits)}</div>')
-    if clicked:
-        regenerate_demo() if rt.demo else run_gmail_sync()
-    elif not rt.demo and _auto_sync_due(data.settings()):
+    if regenerate:
+        regenerate_demo()
+    elif clicked:
+        run_gmail_sync()
+    elif not rt.demo and _auto_sync_due(rt.sync_settings):
         st.session_state["_jt_autosynced"] = True
         run_gmail_sync(auto=True)
