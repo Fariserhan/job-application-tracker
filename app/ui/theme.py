@@ -4,7 +4,7 @@ Editorial "paper" palette, pinned so the app, the Excel workbook and the Power B
 match. One accent (ink blue) marks *you / the story*; warm greys carry context; a sober
 green and a brick red carry outcome. Validated with the data-viz palette checker on the
 paper surface. One deliberate deviation from the pinned list: negative is ``#C04A32``
-rather than ``#B3412E`` — the original pair against positive ``#2E7D4F`` failed deutan
+rather than ``#B3412E``: the original pair against positive ``#2E7D4F`` failed deutan
 separation (ΔE 5.4); the shifted brick reaches ΔE 6.8, which the method allows *with*
 secondary encoding, and every offer/rejection mark in the app is direct-labelled.
 Context greys sit under 3:1 on paper by design, so they too are always labelled.
@@ -19,7 +19,7 @@ from jobtracker import domain
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 CSS_FILE = ASSETS / "style.css"
-CSS_VERSION = "3.0.0"
+CSS_VERSION = "3.1.0"
 
 # ---------------------------------------------------------------- paper & ink
 PAPER = "#F7F5F0"
@@ -89,7 +89,7 @@ def load_css() -> None:
     """
     css = CSS_FILE.read_text(encoding="utf-8")
     # DOMPurify (SAFE_FOR_XML) drops a style block containing anything tag-like, so the
-    # stylesheet must never contain "<" — use CSS escapes (\3C) instead.
+    # stylesheet must never contain "<"; use CSS escapes (\3C) instead.
     if "<" in css:
         raise ValueError("style.css must not contain '<' (use the CSS escape \\3C)")
     st.html(f'<style data-jt-css="{CSS_VERSION}">{css}</style>')

@@ -1,7 +1,7 @@
 """HTML components in the editorial grammar: lede, KPI strip, sections, notes, ledgers.
 
 Every builder renders an HTML string through ``st.html`` (not iframed, so the one
-stylesheet applies). All dynamic text is escaped here — company names and role titles come
+stylesheet applies). All dynamic text is escaped here: company names and role titles come
 from email subjects and must never be trusted as markup. ``st.html`` sanitises with
 DOMPurify's HTML-only profile, which strips inline ``<svg>``; the one glyph that needs SVG
 (the sparkline) is therefore emitted as a data-URI image.
@@ -36,35 +36,35 @@ def _isnull(value) -> bool:
 
 def fmt_int(value) -> str:
     if _isnull(value):
-        return "—"
+        return "-"
     try:
         return f"{int(value):,}"
     except (TypeError, ValueError):
-        return "—"
+        return "-"
 
 
 def fmt_pct(value, digits: int = 1) -> str:
     if _isnull(value):
-        return "—"
+        return "-"
     try:
         return f"{float(value):.{digits}f}%"
     except (TypeError, ValueError):
-        return "—"
+        return "-"
 
 
 def fmt_num(value, digits: int = 1) -> str:
     if _isnull(value):
-        return "—"
+        return "-"
     try:
         number = float(value)
     except (TypeError, ValueError):
-        return "—"
+        return "-"
     return f"{number:.0f}" if number.is_integer() else f"{number:.{digits}f}"
 
 
 def fmt_date(value, pattern: str = "%d %b %Y") -> str:
     if _isnull(value):
-        return "—"
+        return "-"
     if isinstance(value, str):
         try:
             value = datetime.fromisoformat(value[:10])
@@ -144,6 +144,7 @@ class Stat:
     verdict: str = ""        # plain text
     tone: str = ""
     spark: Sequence[float] = field(default_factory=tuple)
+    help: str = ""           # plain-language meaning, shown on hover of the (i)
 
 
 def counter(value: float | int | None, decimals: int = 0, index: int = 0) -> str:
@@ -151,7 +152,7 @@ def counter(value: float | int | None, decimals: int = 0, index: int = 0) -> str
     counter; the real value sits in a screen-reader span, and without animation (reduced
     motion, or no ``@property`` support) the counter simply shows the final number."""
     if _isnull(value):
-        return "—"
+        return "-"
     text = f"{float(value):,.{decimals}f}"
     scaled = round(float(value) * (10 ** decimals))
     if decimals > 1 or abs(scaled) >= 10000 or scaled < 0:
@@ -161,17 +162,26 @@ def counter(value: float | int | None, decimals: int = 0, index: int = 0) -> str
             f'style="--n:{scaled};--i:{index}"></span>')
 
 
+def _stat_html(s: Stat, i: int) -> str:
+    unit = f"<small>{esc(s.unit)}</small>" if s.unit else ""
+    verdict = (f'<div class="jt-stat-verdict {TONE_CLASS.get(s.tone, "")}">{esc(s.verdict)}</div>'
+               if s.verdict else "")
+    spark = sparkline(s.spark) if s.spark else ""
+    tip = (f' <span class="jt-i" title="{esc(s.help)}" aria-label="{esc(s.help)}">i</span>'
+           if s.help else "")
+    return (f'<div class="jt-stat" style="--i:{i}"><div class="jt-stat-label">{esc(s.label)}{tip}'
+            f'</div><div class="jt-stat-value">{counter(s.value, s.decimals, i)}{unit}</div>'
+            f'<div class="jt-stat-ctx">{esc(s.context)}</div>{verdict}{spark}</div>')
+
+
 def kpi_strip(stats: Sequence[Stat]) -> None:
-    parts = []
-    for i, s in enumerate(stats):
-        unit = f"<small>{esc(s.unit)}</small>" if s.unit else ""
-        verdict = (f'<div class="jt-stat-verdict {TONE_CLASS.get(s.tone, "")}">{esc(s.verdict)}</div>'
-                   if s.verdict else "")
-        spark = sparkline(s.spark) if s.spark else ""
-        parts.append(f'<div class="jt-stat" style="--i:{i}"><div class="jt-stat-label">{esc(s.label)}</div>'
-                     f'<div class="jt-stat-value">{counter(s.value, s.decimals, i)}{unit}</div>'
-                     f'<div class="jt-stat-ctx">{esc(s.context)}</div>{verdict}{spark}</div>')
-    render(f'<div class="jt-strip">{"".join(parts)}</div>')
+    render(f'<div class="jt-strip">{"".join(_stat_html(s, i) for i, s in enumerate(stats))}</div>')
+
+
+def kpi_tile(stat: Stat, index: int) -> None:
+    """One KPI on its own, for strips laid out in Streamlit columns (so each tile can carry
+    its own "See them" button underneath)."""
+    render(_stat_html(stat, index))
 
 
 def sparkline(values: Sequence[float], color: str = theme.ACCENT, width: int = 120,
@@ -207,6 +217,18 @@ def section(n: int, kicker: str, title: str, dek: str = ""):
 def subhead(title: str, dek: str = "") -> None:
     render(f'<div class="jt-sub">{esc(title)}</div>'
            + (f'<p class="jt-subdek">{dek}</p>' if dek else ""))
+
+
+def explain(how: str, means: str = "") -> None:
+    """The two plain-English lines every chart carries: how to read it, and what it means
+    for the reader (the takeaway, with an action where there is one). HTML allowed."""
+    means_html = f'<p><b>What it means for you.</b> {means}</p>' if means else ""
+    render(f'<div class="jt-explain"><p><b>How to read it.</b> {how}</p>{means_html}</div>')
+
+
+def term(word: str, meaning: str) -> str:
+    """A word with a dotted underline that explains itself on hover."""
+    return f'<abbr class="jt-term" title="{esc(meaning)}">{esc(word)}</abbr>'
 
 
 def source(text_html: str) -> None:

@@ -1,4 +1,4 @@
-"""Cached, read-only access to the warehouse — and the one place the app writes from.
+"""Cached, read-only access to the warehouse, and the one place the app writes from.
 
 Why it is shaped this way:
 
@@ -59,7 +59,7 @@ def _truthy(value: str | None) -> bool:
 
 
 def holds_demo_data(settings: Settings) -> bool:
-    """A data dir created by ``jobtracker demo`` — safe to regenerate, never real mail."""
+    """A data dir created by ``jobtracker demo``: safe to regenerate, never real mail."""
     try:
         state = json.loads(Path(settings.state_path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -97,7 +97,7 @@ def regenerate_demo(path: Path) -> dict:
     from jobtracker.demo import build_demo
 
     if not _safe_to_rebuild(path):
-        raise RuntimeError(f"{path} holds real application data — refusing to overwrite it.")
+        raise RuntimeError(f"{path} holds real application data. Refusing to overwrite it.")
     result = build_demo(path)
     clear_caches()
     return result
@@ -538,3 +538,67 @@ def humanize_since(stamp: str | None) -> str:
     if seconds < 86400:
         return f"{seconds // 3600} h ago"
     return f"{seconds // 86400} d ago"
+
+
+CHANGE_ICONS = {"Interview": ":material/event:", "Offer": ":material/celebration:",
+                "Rejected": ":material/close:", "Ghosted": ":material/schedule:",
+                "Assessment / OA": ":material/quiz:", "Withdrawn": ":material/undo:"}
+
+
+def latest_changes(limit: int = 6) -> tuple[str, list[dict], int] | None:
+    """What the last sync (and anything done by hand since) changed, newest and most
+    interesting first: status moves, then new applications. None before the first sync."""
+    try:
+        r = Repository(settings())
+        state = r.load_state()
+        since = state.get("last_sync_started")
+        changes = r.changes_since(since) if since else None
+    except Exception:
+        return None
+    if changes is None:
+        return None
+    when = humanize_since(state.get("last_sync_at"))
+    if not changes:
+        return f"Nothing new since your last sync ({when}).", [], 0
+    moved = [c for c in changes if c.get("from_status")]
+    new = [c for c in changes if not c.get("from_status")]
+    parts = []
+    if new:
+        parts.append(f"{len(new)} new application{'s' if len(new) != 1 else ''}")
+    if moved:
+        parts.append(f"{len(moved)} status change{'s' if len(moved) != 1 else ''}")
+    title = f"Since your last sync ({when}): " + " and ".join(parts)
+    rank = {"Offer": 0, "Interview": 1, "Assessment / OA": 2, "Rejected": 3, "Withdrawn": 4,
+            "Ghosted": 6}
+    moved.sort(key=lambda c: rank.get(str(c.get("to_status")), 5))
+    ordered = [c for c in moved if c.get("to_status") != "Ghosted"] + new + [
+        c for c in moved if c.get("to_status") == "Ghosted"]
+    items = []
+    for c in ordered[:limit]:
+        who = f"{c.get('company_name') or 'Unknown'}, {c.get('role_title') or 'role not stated'}"
+        if c.get("from_status"):
+            label = f"{who}: {c['from_status']} → {c['to_status']}"
+            icon = CHANGE_ICONS.get(str(c["to_status"]), ":material/arrow_forward:")
+        else:
+            label, icon = f"New: {who}", ":material/add_circle:"
+        items.append({"id": str(c["thread_id"]), "label": label, "icon": icon})
+    return title, items, max(0, len(changes) - len(items))
+
+
+def background_sync_status() -> tuple[str, str] | None:
+    """The last line of sync.log (written by ``jobtracker sync --background``, the Windows
+    schedule set up by auto_sync.bat), as (plain text, tone). None when it never ran."""
+    try:
+        log = settings().data_dir / "sync.log"
+        lines = log.read_text(encoding="utf-8").strip().splitlines()
+    except OSError:
+        return None
+    if not lines:
+        return None
+    stamp, _, rest = lines[-1].partition("  ")
+    when = stamp[11:16] if stamp[:10] == date.today().isoformat() else stamp[:10]
+    if rest.strip().startswith("ok"):
+        return f"Auto-synced at {when}", ""
+    if "SignInRequired" in rest:
+        return "Background sync needs you to click Sync Gmail once", "warn"
+    return f"Background sync at {when} failed", "warn"

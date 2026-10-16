@@ -1,7 +1,7 @@
 """Graphviz diagrams of the real model: dbt lineage and the star schema.
 
-The lineage is read from ``jobtracker.warehouse.runner.discover()`` — the same parser that
-executes the models — so the diagram cannot drift from the SQL. Sources are found from the
+The lineage is read from ``jobtracker.warehouse.runner.discover()``, the same parser that
+executes the models, so the diagram cannot drift from the SQL. Sources are found from the
 rendered ``"raw"."table"`` references, seeds from refs that are not models.
 """
 from __future__ import annotations

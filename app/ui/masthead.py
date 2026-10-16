@@ -6,7 +6,7 @@ masthead replaces a sidebar: the page stays one editorial column.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 import pandas as pd
 import streamlit as st
@@ -23,7 +23,7 @@ SETUP_HELP = """
 2. *APIs & Services → Credentials → Create credentials → OAuth client ID → Desktop app*.
 3. Download the JSON and save it as `credentials.json` in your data folder
    (`{data_dir}`).
-4. Press **Sync Gmail** again — a browser tab asks you to approve read-only access once.
+4. Press **Sync Gmail** again. A browser tab asks you to approve read-only access once.
 
 Access is `gmail.readonly`: nothing is ever sent, moved or deleted.
 """
@@ -80,22 +80,50 @@ def _filter_summary() -> str:
     return " · ".join(parts)
 
 
-def run_gmail_sync(full: bool = False) -> None:
-    """Live sync with staged progress. Leaves the status panel open with the summary."""
+def _auto_sync_due(settings) -> bool:
+    """Sync by itself once per visit when the last sync is stale, but only once Gmail has
+    been connected (a saved sign-in exists), so it never pops a Google window unasked."""
+    hours = int(getattr(settings, "auto_sync_hours", 0) or 0)
+    if hours <= 0 or st.session_state.get("_jt_autosynced"):
+        return False
+    if not settings.secret_path("token.json").exists():
+        return False
+    last = data.last_sync()
+    if not last:
+        return True
+    try:
+        age = (datetime.now() - datetime.fromisoformat(last)).total_seconds()
+    except ValueError:
+        return True
+    return age >= hours * 3600
+
+
+def run_gmail_sync(full: bool = False, auto: bool = False) -> None:
+    """Live sync with staged progress, then a fresh run so every page (and the "since your
+    last sync" panel) shows the new data. ``auto`` syncs never open a Google sign-in."""
     settings = data.settings()
-    with st.status("Full re-parse from Gmail…" if full else "Syncing Gmail…",
-                   expanded=True) as status:
+    label = ("Checking Gmail for new job emails…" if auto else
+             "Re-reading your whole mailbox…" if full else "Syncing Gmail…")
+    with st.status(label, expanded=not auto) as status:
         try:
             from jobtracker.gmail import GmailClient
+            from jobtracker.gmail.auth import SignInRequired
 
-            source = GmailClient.from_settings(settings)
+            source = GmailClient.from_settings(settings, interactive=not auto)
         except FileNotFoundError:
+            if auto:
+                status.update(label="Gmail is not connected yet", state="error", expanded=False)
+                return
             status.update(label="Gmail is not connected yet", state="error")
             st.markdown(SETUP_HELP.format(data_dir=settings.data_dir))
             return
         except ImportError as exc:
             status.update(label="Gmail libraries are missing", state="error")
             st.code(f"pip install google-api-python-client google-auth-oauthlib\n# {exc}")
+            return
+        except SignInRequired:
+            status.update(label="Google needs you to sign in again. Click Sync Gmail.",
+                          state="error", expanded=False)
             return
         except Exception as exc:
             status.update(label="Could not connect to Gmail", state="error")
@@ -114,7 +142,7 @@ def run_gmail_sync(full: bool = False) -> None:
             summary = SyncEngine(settings, source, enricher=enrich_many).run(
                 full=full, progress=progress)
         except Exception as exc:
-            status.update(label="Sync failed — your stored data is unchanged", state="error")
+            status.update(label="Sync failed. Your stored data is unchanged", state="error")
             st.error(f"{type(exc).__name__}: {exc}")
             return
         for warning in summary.warnings:
@@ -122,7 +150,11 @@ def run_gmail_sync(full: bool = False) -> None:
         st.caption(summary.headline())
         status.update(label="Sync complete", state="complete", expanded=bool(summary.warnings))
     data.clear_caches()
-    data.flash(summary.headline())
+    found = (f"{summary.inserted} new, {summary.updated} updated" if summary.inserted
+             or summary.updated else "nothing new")
+    data.flash(f"Gmail synced: {found}", ":material/mark_email_read:")
+    if not summary.warnings:
+        st.rerun()
 
 
 def regenerate_demo() -> None:
@@ -137,7 +169,7 @@ def regenerate_demo() -> None:
             st.error(f"{type(exc).__name__}: {exc}")
             return
         apps = result["warehouse"].get("fct_applications", 0)
-        status.update(label=f"Demo rebuilt — {apps} applications from "
+        status.update(label=f"Demo rebuilt: {apps} applications from "
                             f"{result['messages']} synthetic emails", state="complete",
                       expanded=False)
     data.flash(f"Demo regenerated: {apps} applications")
@@ -166,17 +198,22 @@ def render(rt: data.Runtime, show_filters: bool = True) -> None:
             clicked = st.button("Sync Gmail", icon=":material/sync:", type="primary",
                                 help="Incremental: only mail since the last sync is fetched.")
 
-    built = data.manifest().get("built_at")
     today = date.today()
     bits = [f"<span>{today:%A} {today.day} {today:%B %Y}</span>",
-            f"<span>Last sync <b>{ui.esc(data.humanize_since(data.last_sync()))}</b></span>",
-            f"<span>Warehouse built <b>{ui.esc(data.humanize_since(built))}</b></span>"]
+            f"<span>Last sync <b>{ui.esc(data.humanize_since(data.last_sync()))}</b></span>"]
+    background = data.background_sync_status()
+    if background:
+        text, tone = background
+        bits.append(f'<span class="{ui.TONE_CLASS.get(tone, "")}">{ui.esc(text)}</span>')
     summary = _filter_summary() if show_filters else ""
     if summary:
         bits.append(f"<span>Filtered to <b>{ui.esc(summary)}</b></span>")
     if rt.demo:
-        bits.append('<span class="jt-demo"><i>Demo</i> — synthetic data generated by the real '
+        bits.append('<span class="jt-demo"><i>Demo</i>: made-up data run through the real '
                     'pipeline; no real applications are shown.</span>')
     st.html(f'<div class="jt-meta">{"".join(bits)}</div>')
     if clicked:
         regenerate_demo() if rt.demo else run_gmail_sync()
+    elif not rt.demo and _auto_sync_due(data.settings()):
+        st.session_state["_jt_autosynced"] = True
+        run_gmail_sync(auto=True)

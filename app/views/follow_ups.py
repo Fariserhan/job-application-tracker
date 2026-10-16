@@ -1,10 +1,11 @@
-"""Follow-ups — the action queue, grouped by what to send, with a ready draft for each."""
+"""Follow-ups: the action queue, grouped by what to send, with a ready draft for each."""
 from __future__ import annotations
 
 import streamlit as st
 
 from app.ui import components as ui
-from app.ui import data
+from app.ui import data, drill
+from jobtracker import domain
 
 s = data.settings()
 queue = data.metric("follow_up_queue")
@@ -12,10 +13,10 @@ queue = data.metric("follow_up_queue")
 # Tier order = value of the follow-up: after an interview first, plain nudges last.
 TIERS = {
     "Thank-you / status check": (
-        "after an interview — thank them and ask about timing",
+        "after an interview. Thank them and ask about timing",
         "A short thank-you that restates fit and asks for a decision timeline. The highest-value "
         "email in the queue.",
-        "Subject: Thank you — {role} interview\n\n"
+        "Subject: Thank you for the {role} interview\n\n"
         "Hi {contact},\n\n"
         "Thank you again for the conversation about the {role} role at {company}. I enjoyed "
         "learning about the team and remain very interested.\n\n"
@@ -23,18 +24,18 @@ TIERS = {
         "to provide anything else that would help.\n\n"
         "Best regards,\n[Your name]"),
     "Confirm the assessment was received": (
-        "with an assessment outstanding — confirm it arrived",
+        "with an assessment outstanding. Confirm it arrived",
         "Confirm the submission was received and ask what happens next.",
-        "Subject: {role} assessment — confirming receipt\n\n"
+        "Subject: {role} assessment: confirming receipt\n\n"
         "Hi {contact},\n\n"
         "I completed the assessment for the {role} position at {company} and wanted to confirm "
         "it was received. Please let me know if anything else is needed from my side.\n\n"
         "Kind regards,\n[Your name]"),
     "Final nudge": (
-        "about to be marked ghosted — one last, polite nudge",
+        "about to be marked ghosted. One last, polite nudge",
         "Silent long enough that the ghosting rule is close. One courteous message, then move "
         "on.",
-        "Subject: Following up — {role} application\n\n"
+        "Subject: Following up on my {role} application\n\n"
         "Hi {contact},\n\n"
         "I applied for the {role} role at {company} on {applied} and wanted to follow up once "
         "more. I'm still very interested and would welcome the chance to discuss how I could "
@@ -43,9 +44,9 @@ TIERS = {
         "records.\n\n"
         "Thank you,\n[Your name]"),
     "Polite follow-up": (
-        "quiet for a week or more — a polite check-in",
+        "quiet for a week or more. A polite check-in",
         "A brief, friendly check-in that adds one new reason you fit.",
-        "Subject: {role} application — following up\n\n"
+        "Subject: Checking in on my {role} application\n\n"
         "Hi {contact},\n\n"
         "I hope you're well. I applied for the {role} role at {company} on {applied} and wanted "
         "to check on the status of my application. I'm particularly drawn to the role because "
@@ -57,10 +58,10 @@ n = len(queue)
 ui.lede("Follow-ups", [
     (f"{n} application{'s' if n != 1 else ''}", "em"),
     (f" {'have' if n != 1 else 'has'} gone quiet for {s.follow_up_after_days}+ days." if n
-     else " — nothing is waiting on you.", ""),
-], "Grouped by what to send, most valuable first, each with a draft you can copy. Marking one "
-   "as followed up logs a dated note and restarts its silence clock, so the queue and the "
-   "ghosting rule measure silence since your nudge.")
+     else ". Nothing is waiting on you.", ""),
+], "Grouped by what to send, most important first. Each has an email ready to copy. When "
+   "you have sent it, click Mark followed up: the app notes the date and restarts the clock, "
+   "so it only comes back here if they stay quiet.")
 
 if queue.empty:
     ui.empty_state("All caught up", "Nothing has been quiet long enough to chase.")
@@ -95,16 +96,28 @@ for tier, (headline, advice, template) in TIERS.items():
                                         applied=ui.fmt_date(r.applied_date, "%d %B"))
                 actions = st.container(horizontal=True, gap="small", vertical_alignment="center")
                 with actions:
-                    with st.popover("Draft email", icon=":material/edit_note:"):
-                        st.caption("Copy with the icon in the corner of the block.")
+                    with st.popover("Email to send", icon=":material/edit_note:"):
+                        st.caption("Click the copy icon in the corner, paste it into a reply "
+                                   "to their last email, and fill in the brackets.")
                         st.code(draft, language=None, wrap_lines=True)
                     if st.button("Mark followed up", key=f"fu_done_{r.application_id}",
-                                 icon=":material/done:"):
+                                 icon=":material/done:", type="primary"):
                         data.repo().record_follow_up(str(r.application_id), note=tier)
-                        data.rebuild(f"Logged a follow-up to {r.company_name}")
+                        data.rebuild(f"Noted: you followed up with {r.company_name}")
+                        st.rerun()
+                    if st.button("Open", key=f"fu_open_{r.application_id}",
+                                 icon=":material/open_in_full:"):
+                        drill.open_application(str(r.application_id))
+                    if st.button("Give up on it", key=f"fu_ghost_{r.application_id}",
+                                 icon=":material/schedule:", type="tertiary",
+                                 help="Mark it ghosted now, so it leaves this list. Undo any "
+                                      "time from the application."):
+                        data.repo().set_status(str(r.application_id), domain.GHOSTED,
+                                               note="Marked ghosted from Follow-ups")
+                        data.rebuild(f"{r.company_name} marked as ghosted")
                         st.rerun()
                     if isinstance(r.gmail_link, str) and r.gmail_link.startswith("http"):
-                        st.link_button("Open thread", r.gmail_link, type="tertiary",
+                        st.link_button("Gmail", r.gmail_link, type="tertiary",
                                        icon=":material/open_in_new:")
                     if isinstance(r.job_url, str) and r.job_url.startswith("http"):
                         st.link_button("Posting", r.job_url, type="tertiary",
