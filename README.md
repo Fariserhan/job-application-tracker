@@ -6,7 +6,11 @@ layer, a Streamlit app, a written findings report and an Excel / Power BI / Tabl
 [![CI](https://github.com/fariserhan/job-application-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/fariserhan/job-application-tracker/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%E2%80%933.13-3776AB)
 ![dbt](https://img.shields.io/badge/dbt-DuckDB-FF694B)
-![Streamlit](https://img.shields.io/badge/app-Streamlit-FF4B4B)
+[![Live demo](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://job-application-tracker-fxg5em5e9udlqzbv5zrruu.streamlit.app/)
+[![dbt docs](https://img.shields.io/badge/dbt_docs-lineage-FF694B)](https://fariserhan.github.io/job-application-tracker/)
+
+**[Open the live demo →](https://job-application-tracker-fxg5em5e9udlqzbv5zrruu.streamlit.app/)**
+(synthetic data) · **[Browse the warehouse docs and lineage →](https://fariserhan.github.io/job-application-tracker/)**
 
 ![Overview](docs/screenshots/overview.png)
 
