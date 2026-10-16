@@ -1,0 +1,10 @@
+platform,channel,is_direct
+LinkedIn,Job board,false
+JobStreet,Job board,false
+Hiredly,Job board,false
+Prosple,Graduate board,false
+Indeed,Job board,false
+Direct ATS,Employer careers site,true
+Company Site,Employer careers site,true
+Referral,Referral,true
+Other,Other,false

@@ -17,11 +17,21 @@ TQ7A1628.jpg
 WhatsApp Image*.jpeg
 WhatsApp Image*.jpg
 
-# ---- Generated output (rebuildable from the database) ----
+# ---- Data directory (v2 layout) & generated output ----
+data/
+demo_data/
 bi_pack/
+*.duckdb
+*.duckdb.wal
+*.duckdb.building
 warehouse.db
 warehouse.db-wal
 warehouse.db-shm
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+.coverage
+htmlcov/
 
 # ---- Python ----
 __pycache__/
@@ -47,3 +57,4 @@ desktop.ini
 demo.db
 demo_job_tracker.csv
 demo_sync_state.json
+dbt/.user.yml

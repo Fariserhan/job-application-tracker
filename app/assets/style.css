@@ -1,0 +1,473 @@
+/* ==========================================================================
+   Job Search Analytics — app stylesheet  v3.0.0  ("paper")
+   One file, loaded once per run by app/ui/theme.py:load_css().
+
+   Scope: every rule targets a `jt-` class emitted by app/ui/components.py, a keyed
+   container (`.st-key-jt-…`, or a chart key such as `.st-key-h-…`), or a short, named
+   list of Streamlit test ids (header, top nav, main block, buttons, inputs).
+
+   Motion: every animation lives inside `@media (prefers-reduced-motion: no-preference)`
+   at the end of the file, so reduced-motion users get the finished, static page. The
+   static page is the design; motion only choreographs how it arrives.
+   ========================================================================== */
+
+:root {
+  --jt-paper: #F7F5F0;
+  --jt-surface: #FFFFFF;
+  --jt-sunk: #F1EEE7;
+  --jt-ink: #191919;
+  --jt-ink-2: #5F5B54;
+  --jt-ink-3: #8A857C;
+  --jt-rule: #E3DED5;
+  --jt-grey: #C9C3B8;
+  --jt-grey-dark: #A39E94;
+  --jt-accent: #1D3FBB;
+  --jt-accent-soft: #DCE3FA;
+  --jt-positive: #2E7D4F;
+  --jt-negative: #C04A32;
+  --jt-caution: #B7791F;
+  --jt-serif: Newsreader, Georgia, 'Times New Roman', serif;
+  --jt-sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --jt-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --jt-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --jt-fast: 180ms;
+}
+
+/* ---------------------------------------------------------------- app frame */
+[data-testid="stAppViewContainer"], [data-testid="stMain"] { background: var(--jt-paper); }
+[data-testid="stMainBlockContainer"] {
+  max-width: 1240px;
+  padding: 4.6rem 3rem 5rem;
+}
+[data-testid="stHeader"] {
+  background: rgba(247, 245, 240, 0.94);
+  border-bottom: 1px solid var(--jt-rule);
+}
+
+/* Top navigation: quiet text links aligned to the content column; active = ink + underline. */
+[data-testid="stHeader"] [data-testid="stToolbar"] {
+  padding-left: calc(max(1rem, (100vw - 1240px) / 2 + 3rem) - 3.2rem);
+}
+[data-testid="stTopNavLink"] {
+  position: relative; background: transparent !important; border-radius: 0 !important;
+  padding: 0.35rem 0.1rem !important; margin: 0 0.7rem;
+}
+[data-testid="stTopNavLink"] [data-testid="stIconMaterial"] { display: none; }
+[data-testid="stTopNavLink"] p {
+  font-family: var(--jt-sans); font-size: 0.86rem; font-weight: 500; color: var(--jt-ink-2);
+  letter-spacing: 0.01em; transition: color var(--jt-fast) var(--jt-ease);
+}
+[data-testid="stTopNavLink"]:hover p, [data-testid="stTopNavLink"][aria-current="page"] p { color: var(--jt-ink); }
+[data-testid="stTopNavLink"]::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1.5px;
+  background: var(--jt-ink); transform: scaleX(0); transform-origin: left;
+  transition: transform 240ms var(--jt-ease);
+}
+[data-testid="stTopNavLink"]:hover::after { transform: scaleX(1); background: var(--jt-ink-3); }
+[data-testid="stTopNavLink"][aria-current="page"]::after { transform: scaleX(1); background: var(--jt-ink); }
+
+/* Buttons & inputs: crisp press, accent focus ring. */
+[data-testid^="stBaseButton"] {
+  transition: background-color var(--jt-fast) var(--jt-ease), border-color var(--jt-fast) var(--jt-ease),
+              color var(--jt-fast) var(--jt-ease), transform 90ms var(--jt-ease);
+  font-weight: 500;
+}
+[data-testid^="stBaseButton"]:active { transform: translateY(1px); }
+[data-testid^="stBaseButton"]:focus-visible, [data-testid="stTopNavLink"]:focus-visible,
+.jt-ledger a:focus-visible {
+  outline: 2px solid var(--jt-accent) !important; outline-offset: 2px;
+}
+[data-testid="stExpander"] details { border-color: var(--jt-rule); border-radius: 4px; }
+[data-testid="stTabs"] [data-baseweb="tab"] p { font-size: 0.9rem; font-weight: 500; }
+
+/* ---------------------------------------------------------------- masthead */
+.jt-wordmark { display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; }
+.jt-wordmark b {
+  font-family: var(--jt-serif); font-weight: 600; font-size: 1.55rem; letter-spacing: -0.01em;
+  color: var(--jt-ink); line-height: 1;
+}
+.jt-wordmark span {
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--jt-ink-3);
+}
+.jt-meta {
+  border-top: 1px solid var(--jt-ink); padding-top: 0.45rem; margin-top: 0.1rem;
+  display: flex; flex-wrap: wrap; gap: 0.25rem 1.1rem; font-size: 0.78rem; color: var(--jt-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.jt-meta b { color: var(--jt-ink-2); font-weight: 500; }
+.jt-meta .jt-demo { color: var(--jt-ink-2); }
+.jt-meta .jt-demo i { font-family: var(--jt-serif); font-size: 0.92rem; color: var(--jt-accent); }
+
+/* ---------------------------------------------------------------- page lede */
+.jt-head { margin: 2.4rem 0 0.4rem; }
+.jt-kicker {
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--jt-accent); margin: 0 0 0.7rem;
+}
+.jt-lede {
+  font-family: var(--jt-serif); font-weight: 400; font-size: 2.65rem; line-height: 1.14;
+  letter-spacing: -0.015em; color: var(--jt-ink); margin: 0; max-width: 23em;
+  font-variant-numeric: lining-nums;
+}
+.jt-lede .w { display: inline-block; }
+.jt-lede em {
+  font-style: normal; color: var(--jt-accent);
+  background-image: linear-gradient(var(--jt-accent), var(--jt-accent));
+  background-repeat: no-repeat; background-position: 0 94%; background-size: 100% 2px;
+}
+.jt-lede .m { color: var(--jt-ink-2); }
+.jt-dek {
+  font-size: 1.06rem; line-height: 1.6; color: var(--jt-ink-2); margin: 1rem 0 0; max-width: 44em;
+}
+
+/* ---------------------------------------------------------------- KPI strip */
+.jt-strip {
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 2.2rem 0 0.5rem; border-top: 1px solid var(--jt-rule); border-bottom: 1px solid var(--jt-rule);
+}
+.jt-stat { padding: 1.05rem 1.1rem 1.15rem; border-left: 1px solid var(--jt-rule); min-width: 0; }
+.jt-stat:first-child { border-left: 0; padding-left: 0; }
+.jt-stat-label {
+  font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--jt-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.jt-stat-value {
+  font-family: var(--jt-serif); font-size: 3rem; font-weight: 400; line-height: 1;
+  letter-spacing: -0.02em; color: var(--jt-ink); margin-top: 0.55rem;
+  font-variant-numeric: tabular-nums lining-nums; white-space: nowrap;
+}
+.jt-stat-value small {
+  font-family: var(--jt-sans); font-size: 0.95rem; font-weight: 500; color: var(--jt-ink-2);
+  letter-spacing: 0; margin-left: 0.2rem;
+}
+.jt-stat-ctx { font-size: 0.78rem; color: var(--jt-ink-3); margin-top: 0.55rem; font-variant-numeric: tabular-nums; }
+.jt-stat-verdict { font-size: 0.78rem; font-weight: 600; margin-top: 0.2rem; }
+.jt-stat .jt-spark { display: block; margin-top: 0.5rem; }
+
+/* Count-up numerals: the integer custom property animates; the counter prints it. The
+   final value is the element's own --n, so without animation it simply shows the number. */
+@property --n { syntax: '\3C integer\3E'; inherits: false; initial-value: 0; }
+@property --int { syntax: '\3C integer\3E'; inherits: false; initial-value: 0; }
+@property --frac { syntax: '\3C integer\3E'; inherits: false; initial-value: 0; }
+.jt-count { counter-reset: n var(--n); }
+.jt-count::after { content: counter(n); }
+.jt-count.d1 {
+  --int: calc((var(--n) - 5) / 10);
+  --frac: calc(var(--n) - var(--int) * 10);
+  counter-reset: i var(--int) f var(--frac);
+}
+.jt-count.d1::after { content: counter(i) "." counter(f); }
+.jt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------------------------------------------------------------- tone */
+.t-pos { color: var(--jt-positive); }
+.t-neg { color: var(--jt-negative); }
+.t-warn { color: var(--jt-caution); }
+.t-acc { color: var(--jt-accent); }
+.t-mute { color: var(--jt-ink-3); }
+
+/* ---------------------------------------------------------------- sections */
+[class*="st-key-jt-sec"] { margin-top: 2.6rem; }
+.jt-sec-head { border-top: 1px solid var(--jt-ink); padding-top: 0.85rem; margin-bottom: 0.4rem; }
+.jt-sec-kicker {
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--jt-ink-2); display: flex; gap: 0.6rem;
+}
+.jt-sec-kicker span { color: var(--jt-accent); font-variant-numeric: tabular-nums; }
+.jt-sec-title {
+  font-family: var(--jt-serif); font-size: 1.85rem; font-weight: 400; line-height: 1.2;
+  letter-spacing: -0.01em; color: var(--jt-ink); margin: 0.45rem 0 0; max-width: 30em;
+}
+.jt-sec-dek { font-size: 0.95rem; line-height: 1.55; color: var(--jt-ink-2); margin: 0.4rem 0 0; max-width: 46em; }
+.jt-sub {
+  font-family: var(--jt-serif); font-size: 1.3rem; font-weight: 500; line-height: 1.25;
+  color: var(--jt-ink); margin: 0.6rem 0 0.15rem;
+}
+.jt-subdek { font-size: 0.86rem; color: var(--jt-ink-2); margin: 0 0 0.3rem; line-height: 1.5; }
+.jt-source {
+  font-size: 0.74rem; color: var(--jt-ink-3); line-height: 1.5; margin: 0.15rem 0 0;
+  padding-top: 0.45rem; border-top: 1px solid var(--jt-rule);
+}
+.jt-source b { font-weight: 600; color: var(--jt-ink-2); }
+
+/* ---------------------------------------------------------------- annotation column */
+.jt-aside { padding-top: 0.3rem; }
+.jt-note { padding: 0.85rem 0 0.95rem; border-top: 1px solid var(--jt-rule); }
+.jt-note:first-child { border-top: 0; padding-top: 0.2rem; }
+.jt-note-k {
+  font-size: 0.66rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--jt-ink-3); margin-bottom: 0.3rem;
+}
+.jt-note-k.t-pos { color: var(--jt-positive); }
+.jt-note-k.t-neg { color: var(--jt-negative); }
+.jt-note-k.t-warn { color: var(--jt-caution); }
+.jt-note h4 {
+  font-family: var(--jt-serif); font-size: 1.12rem; font-weight: 500; line-height: 1.3;
+  color: var(--jt-ink); margin: 0 0 0.3rem; padding: 0;
+}
+.jt-note p { font-size: 0.86rem; line-height: 1.58; color: var(--jt-ink-2); margin: 0; }
+.jt-note p b { color: var(--jt-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- per-100 comparison */
+.jt-compare { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 0.3rem; }
+.jt-compare th {
+  font-size: 0.64rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--jt-ink-3); text-align: right; padding: 0 0 0.45rem; border-bottom: 1px solid var(--jt-ink);
+}
+.jt-compare th:first-child, .jt-compare td:first-child { text-align: left; }
+.jt-compare td {
+  padding: 0.62rem 0; border-bottom: 1px solid var(--jt-rule); text-align: right;
+  font-size: 0.86rem; color: var(--jt-ink-2);
+}
+.jt-compare td:first-child { color: var(--jt-ink); font-weight: 500; }
+.jt-compare td.you { font-family: var(--jt-serif); font-size: 1.2rem; color: var(--jt-accent); }
+
+/* ---------------------------------------------------------------- ledger (list rows) */
+.jt-ledger { border-top: 1px solid var(--jt-ink); }
+.jt-lrow {
+  display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.2fr) minmax(0, 1fr) 6.5rem;
+  gap: 1rem; align-items: baseline; padding: 0.78rem 0.4rem; border-bottom: 1px solid var(--jt-rule);
+  background-image: linear-gradient(90deg, var(--jt-sunk), var(--jt-sunk));
+  background-repeat: no-repeat; background-size: 0% 100%;
+  transition: background-size 260ms var(--jt-ease);
+}
+.jt-lrow:hover { background-size: 100% 100%; }
+.jt-lrow.head {
+  font-size: 0.64rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--jt-ink-3); padding-top: 0.5rem; padding-bottom: 0.5rem; background: none;
+}
+.jt-lrow b { font-weight: 600; color: var(--jt-ink); font-size: 0.92rem; }
+.jt-lrow .sub { display: block; font-size: 0.8rem; color: var(--jt-ink-2); margin-top: 0.1rem; }
+.jt-lrow .c { font-size: 0.84rem; color: var(--jt-ink-2); }
+.jt-lrow .n {
+  text-align: right; font-family: var(--jt-serif); font-size: 1.35rem; color: var(--jt-ink);
+  font-variant-numeric: tabular-nums;
+}
+.jt-lrow .n small { font-family: var(--jt-sans); font-size: 0.72rem; color: var(--jt-ink-3); margin-left: 0.15rem; }
+.jt-lrow a, .jt-card a, .jt-fu a { color: var(--jt-accent); text-decoration: none; border-bottom: 1px solid var(--jt-accent-soft); }
+.jt-lrow a:hover, .jt-card a:hover { border-bottom-color: var(--jt-accent); }
+
+/* Status marker: a small square swatch + text (colour never carries meaning alone). */
+.jt-st { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--jt-ink-2); white-space: nowrap; }
+.jt-st i { width: 8px; height: 8px; display: inline-block; flex: none; }
+.jt-key { display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; margin: 0.2rem 0 0; font-size: 0.78rem; color: var(--jt-ink-2); }
+.jt-key span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.jt-key i { width: 10px; height: 10px; display: inline-block; }
+.jt-tag {
+  font-size: 0.66rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--jt-ink-3); white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- kanban (editorial columns) */
+.jt-board { display: grid; grid-template-columns: repeat(4, minmax(210px, 1fr)); overflow-x: auto; }
+.jt-col { padding: 0 1rem; border-left: 1px solid var(--jt-rule); min-width: 0; }
+.jt-col:first-child { border-left: 0; padding-left: 0; }
+.jt-col-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem;
+  border-top: 3px solid var(--lane, var(--jt-ink)); padding: 0.6rem 0 0.7rem;
+}
+.jt-col-head strong {
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--jt-ink);
+}
+.jt-col-head span { font-family: var(--jt-serif); font-size: 1.5rem; color: var(--jt-ink); font-variant-numeric: tabular-nums; line-height: 1; }
+.jt-card {
+  position: relative; padding: 0.7rem 0.75rem 0.75rem; margin: 0 -0.75rem; border-top: 1px solid var(--jt-rule);
+  transition: transform var(--jt-fast) var(--jt-ease), background-color var(--jt-fast) var(--jt-ease),
+              box-shadow var(--jt-fast) var(--jt-ease);
+}
+.jt-card:hover {
+  transform: translateY(-2px); background: var(--jt-surface);
+  box-shadow: inset 2px 0 0 var(--jt-accent), 0 1px 0 var(--jt-rule);
+}
+.jt-card-co { font-size: 0.9rem; font-weight: 600; color: var(--jt-ink); line-height: 1.3; }
+.jt-card-role { font-family: var(--jt-serif); font-size: 0.98rem; color: var(--jt-ink-2); line-height: 1.3; margin-top: 0.1rem; }
+.jt-card-meta {
+  display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; align-items: baseline; margin-top: 0.4rem;
+  font-size: 0.74rem; color: var(--jt-ink-3); font-variant-numeric: tabular-nums;
+}
+.jt-card-age { margin-left: auto; color: var(--jt-ink-2); font-weight: 500; }
+.jt-card-age.stale { color: var(--jt-caution); font-weight: 600; }
+.jt-col-more { font-size: 0.76rem; color: var(--jt-ink-3); padding: 0.6rem 0; border-top: 1px solid var(--jt-rule); }
+.jt-col-empty { font-family: var(--jt-serif); font-style: italic; font-size: 0.95rem; color: var(--jt-ink-3); padding: 0.9rem 0; border-top: 1px solid var(--jt-rule); }
+
+/* ---------------------------------------------------------------- stat row (small) */
+.jt-stats { display: flex; flex-wrap: wrap; gap: 0.4rem 2.2rem; margin: 1.6rem 0 1rem; padding-bottom: 0.9rem; border-bottom: 1px solid var(--jt-rule); }
+.jt-mini span { display: block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--jt-ink-3); }
+.jt-mini b { font-family: var(--jt-serif); font-size: 1.7rem; font-weight: 400; color: var(--jt-ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+
+/* ---------------------------------------------------------------- detail sheet */
+[class*="st-key-jt-sheet"] {
+  background: var(--jt-surface); border: 1px solid var(--jt-rule); border-top: 2px solid var(--jt-ink);
+  padding: 1.4rem 1.6rem 1.2rem; margin-top: 1.6rem;
+}
+.jt-detail-title { font-family: var(--jt-serif); font-size: 1.9rem; font-weight: 400; color: var(--jt-ink); margin: 0; line-height: 1.15; }
+.jt-detail-sub { font-size: 0.95rem; color: var(--jt-ink-2); margin: 0.3rem 0 0; }
+.jt-facts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.8rem 1.2rem;
+  margin: 1.1rem 0 1.2rem; padding: 0.9rem 0; border-top: 1px solid var(--jt-rule); border-bottom: 1px solid var(--jt-rule);
+}
+.jt-fact span { display: block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--jt-ink-3); }
+.jt-fact b { display: block; font-size: 0.92rem; color: var(--jt-ink); font-weight: 500; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+.jt-label {
+  font-size: 0.66rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--jt-ink-3); margin: 0.2rem 0 0.6rem;
+}
+
+/* ---------------------------------------------------------------- timeline */
+.jt-timeline { position: relative; padding-left: 1.3rem; }
+.jt-timeline::before { content: ""; position: absolute; left: 4px; top: 0.45rem; bottom: 0.45rem; width: 1px; background: var(--jt-rule); }
+.jt-tl-item { position: relative; padding: 0 0 1.05rem; }
+.jt-tl-item:last-child { padding-bottom: 0.1rem; }
+.jt-tl-dot { position: absolute; left: calc(-1.3rem + 0.5px); top: 0.4rem; width: 9px; height: 9px; background: var(--c, var(--jt-ink)); box-shadow: 0 0 0 3px var(--jt-surface); }
+.jt-tl-date { font-size: 0.72rem; color: var(--jt-ink-3); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.jt-tl-title { font-size: 0.92rem; font-weight: 600; color: var(--jt-ink); margin-top: 0.05rem; }
+.jt-tl-note { font-family: var(--jt-serif); font-size: 0.98rem; color: var(--jt-ink-2); line-height: 1.4; margin-top: 0.1rem; }
+
+/* ---------------------------------------------------------------- meters */
+.jt-meters { display: grid; gap: 0.95rem; }
+.jt-meter-top { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.86rem; color: var(--jt-ink); }
+.jt-meter-top b { font-family: var(--jt-serif); font-size: 1.1rem; font-weight: 400; font-variant-numeric: tabular-nums; }
+.jt-meter-top em { font-style: normal; font-size: 0.74rem; color: var(--jt-ink-3); margin-left: 0.4rem; font-family: var(--jt-sans); }
+.jt-meter-track { height: 3px; background: var(--jt-rule); margin-top: 0.35rem; }
+.jt-meter-fill { height: 100%; background: var(--jt-accent); transform-origin: left; }
+.jt-meter-fill.warn { background: var(--jt-caution); }
+.jt-meter-fill.bad { background: var(--jt-negative); }
+
+/* ---------------------------------------------------------------- data tests */
+.jt-tests { border-top: 1px solid var(--jt-ink); }
+.jt-test {
+  display: grid; grid-template-columns: 1.4rem minmax(0, 1fr) auto; gap: 0.7rem; align-items: baseline;
+  padding: 0.65rem 0; border-bottom: 1px solid var(--jt-rule);
+}
+.jt-test .mark { font-weight: 700; font-size: 0.95rem; }
+.jt-test code { font-family: var(--jt-mono); font-size: 0.8rem; color: var(--jt-ink); background: none; padding: 0; }
+.jt-test .d { display: block; font-size: 0.8rem; color: var(--jt-ink-2); margin-top: 0.15rem; }
+.jt-test .v { font-size: 0.74rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* ---------------------------------------------------------------- architecture flow */
+.jt-flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-top: 1px solid var(--jt-ink); }
+.jt-flow-step { padding: 0.85rem 1rem 0.9rem 0; border-right: 1px solid var(--jt-rule); margin-right: 1rem; min-width: 0; }
+.jt-flow-step:last-child { border-right: 0; margin-right: 0; }
+.jt-flow-step i { font-style: normal; font-family: var(--jt-serif); font-size: 1.5rem; color: var(--jt-accent); line-height: 1; }
+.jt-flow-step b { display: block; font-size: 0.9rem; color: var(--jt-ink); font-weight: 600; margin-top: 0.45rem; }
+.jt-flow-step span { display: block; font-size: 0.78rem; color: var(--jt-ink-2); margin-top: 0.25rem; line-height: 1.45; }
+
+/* ---------------------------------------------------------------- follow-up rows */
+.jt-fu { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.25rem 1.2rem; align-items: baseline; }
+.jt-fu-title { font-size: 1rem; font-weight: 600; color: var(--jt-ink); }
+.jt-fu-sub { font-family: var(--jt-serif); font-size: 1rem; color: var(--jt-ink-2); margin-top: 0.1rem; }
+.jt-fu-meta { font-size: 0.78rem; color: var(--jt-ink-3); margin-top: 0.25rem; font-variant-numeric: tabular-nums; }
+.jt-fu-age { text-align: right; font-family: var(--jt-serif); font-size: 1.8rem; color: var(--jt-ink); line-height: 1; font-variant-numeric: tabular-nums; }
+.jt-fu-age small { display: block; font-family: var(--jt-sans); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--jt-ink-3); margin-top: 0.3rem; }
+[class*="st-key-jt-fu-"] { border-top: 1px solid var(--jt-rule); padding-top: 0.9rem; margin-top: 0.2rem; }
+
+/* ---------------------------------------------------------------- calendar */
+.jt-cal { display: grid; gap: 3px; align-items: center; margin-top: 0.5rem; }
+.jt-cal-m { grid-row: 1; font-size: 0.68rem; color: var(--jt-ink-3); white-space: nowrap; }
+.jt-cal-d { grid-column: 1; font-size: 0.66rem; color: var(--jt-ink-3); }
+.jt-cal-c { display: block; aspect-ratio: 1; background: #ECE8E0; min-width: 0; border-radius: 1px; }
+.jt-cal .jt-cal-c:hover { outline: 1.5px solid var(--jt-ink); outline-offset: 0; }
+.jt-cal-c.l1 { background: #DCE3FA; }
+.jt-cal-c.l2 { background: #9AABEB; }
+.jt-cal-c.l3 { background: #5C77D6; }
+.jt-cal-c.l4 { background: #1D3FBB; }
+.jt-cal-legend { display: flex; align-items: center; gap: 3px; justify-content: flex-end; font-size: 0.7rem; color: var(--jt-ink-3); margin-top: 0.55rem; }
+.jt-cal-legend .jt-cal-c { width: 10px; height: 10px; }
+.jt-cal-legend span { margin: 0 0.3rem; }
+
+/* ---------------------------------------------------------------- empty state */
+.jt-empty { padding: 1.6rem 0; border-top: 1px solid var(--jt-rule); border-bottom: 1px solid var(--jt-rule); color: var(--jt-ink-2); font-size: 0.9rem; }
+.jt-empty b { display: block; font-family: var(--jt-serif); font-size: 1.3rem; font-weight: 400; color: var(--jt-ink); margin-bottom: 0.25rem; }
+
+/* ---------------------------------------------------------------- charts: shared polish */
+.js-plotly-plot .hoverlayer .hovertext { filter: none; }
+
+/* ==========================================================================
+   Motion. One easing curve, total entrance under 1.5s, nothing decorative.
+   ========================================================================== */
+@keyframes jt-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes jt-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes jt-ink { from { background-size: 0% 2px; } to { background-size: 100% 2px; } }
+@keyframes jt-count { from { --n: 0; } }
+@keyframes jt-draw { from { stroke-dasharray: 2400; stroke-dashoffset: 2400; } to { stroke-dasharray: 2400; stroke-dashoffset: 0; } }
+@keyframes jt-grow-y { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes jt-grow-x { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes jt-pop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: none; } }
+@keyframes jt-cell { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: none; } }
+/* The Sankey builds itself stage by stage: the reveal pauses at each column of nodes. */
+@keyframes jt-build {
+  0%   { clip-path: inset(-2% 100% -2% 0); }
+  22%  { clip-path: inset(-2% 64% -2% 0); }
+  34%  { clip-path: inset(-2% 64% -2% 0); }
+  56%  { clip-path: inset(-2% 31% -2% 0); }
+  68%  { clip-path: inset(-2% 31% -2% 0); }
+  100% { clip-path: inset(-2% -2% -2% 0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Entrance choreography: masthead → lede (word by word) → KPI strip → sections. */
+  .jt-wordmark, .jt-meta { animation: jt-fade 500ms var(--jt-ease) both; }
+  .jt-kicker { animation: jt-rise 600ms var(--jt-ease) 60ms both; }
+  .jt-lede .w { animation: jt-rise 600ms var(--jt-ease) both; animation-delay: calc(120ms + var(--i, 0) * 26ms); }
+  .jt-lede em { animation: jt-ink 700ms var(--jt-ease) 900ms both; }
+  .jt-dek { animation: jt-rise 600ms var(--jt-ease) 520ms both; }
+  .jt-strip .jt-stat { animation: jt-rise 600ms var(--jt-ease) both; animation-delay: calc(560ms + var(--i, 0) * 70ms); }
+  .jt-count { animation: jt-count 1100ms cubic-bezier(0.15, 0.6, 0.2, 1) both; animation-delay: calc(620ms + var(--i, 0) * 70ms); }
+  .jt-stats .jt-mini { animation: jt-rise 600ms var(--jt-ease) both; animation-delay: calc(300ms + var(--i, 0) * 60ms); }
+  [class*="st-key-jt-sec"] { animation: jt-rise 650ms var(--jt-ease) both; animation-delay: 820ms; }
+  .st-key-jt-sec-2 { animation-delay: 900ms; }
+  .st-key-jt-sec-3 { animation-delay: 980ms; }
+  .st-key-jt-sec-4, .st-key-jt-sec-5, .st-key-jt-sec-6, .st-key-jt-sec-7, .st-key-jt-sec-8 { animation-delay: 1040ms; }
+  .jt-col { animation: jt-rise 600ms var(--jt-ease) both; animation-delay: calc(380ms + var(--i, 0) * 80ms); }
+  .jt-card { animation: jt-fade 500ms var(--jt-ease) both; animation-delay: calc(520ms + var(--i, 0) * 35ms); }
+  .jt-lrow { animation: jt-rise 520ms var(--jt-ease) both; animation-delay: calc(200ms + var(--i, 0) * 40ms); }
+  .jt-tl-item { animation: jt-rise 520ms var(--jt-ease) both; animation-delay: calc(100ms + var(--i, 0) * 70ms); }
+  .jt-meter-fill { animation: jt-grow-x 900ms var(--jt-ease) both; animation-delay: calc(300ms + var(--i, 0) * 70ms); }
+  .jt-test { animation: jt-rise 520ms var(--jt-ease) both; animation-delay: calc(200ms + var(--i, 0) * 50ms); }
+  .jt-flow-step { animation: jt-rise 560ms var(--jt-ease) both; animation-delay: calc(200ms + var(--i, 0) * 80ms); }
+  /* Calendar cells ripple in by week (left to right). */
+  .jt-cal .jt-cal-c { animation: jt-cell 420ms var(--jt-ease) both; animation-delay: calc(900ms + var(--w, 0) * 22ms); }
+
+  /* Charts — lines draw, bars grow from the baseline, dots settle, annotations land last.
+     Only transforms/opacity/stroke animate, so Plotly's hover layer is untouched. */
+  .js-plotly-plot .scatterlayer .js-line { animation: jt-draw 1300ms cubic-bezier(0.45, 0, 0.2, 1) 350ms backwards; }
+  .js-plotly-plot .scatterlayer .js-fill { animation: jt-fade 900ms var(--jt-ease) 900ms backwards; }
+  .js-plotly-plot .scatterlayer .points path { transform-box: fill-box; transform-origin: center; animation: jt-pop 480ms var(--jt-ease) 700ms backwards; }
+  .js-plotly-plot .errorbars path { animation: jt-fade 600ms var(--jt-ease) 600ms backwards; }
+  .js-plotly-plot .barlayer .point path { transform-box: fill-box; transform-origin: bottom; animation: jt-grow-y 760ms var(--jt-ease) 300ms backwards; }
+  [class*="st-key-h-"] .js-plotly-plot .barlayer .point path { transform-origin: left; animation-name: jt-grow-x; }
+  .js-plotly-plot .barlayer .point:nth-child(2) path { animation-delay: 360ms; }
+  .js-plotly-plot .barlayer .point:nth-child(3) path { animation-delay: 420ms; }
+  .js-plotly-plot .barlayer .point:nth-child(4) path { animation-delay: 480ms; }
+  .js-plotly-plot .barlayer .point:nth-child(5) path { animation-delay: 540ms; }
+  .js-plotly-plot .barlayer .point:nth-child(6) path { animation-delay: 600ms; }
+  .js-plotly-plot .barlayer .point:nth-child(n+7) path { animation-delay: 660ms; }
+  .js-plotly-plot .barlayer .textpoint, .js-plotly-plot .barlayer text { animation: jt-fade 500ms var(--jt-ease) 900ms backwards; }
+  .js-plotly-plot .heatmaplayer, .js-plotly-plot .hm { animation: jt-fade 900ms var(--jt-ease) 300ms backwards; }
+  .js-plotly-plot .infolayer .annotation { animation: jt-fade 500ms var(--jt-ease) 1350ms backwards; }
+  .js-plotly-plot .layer-above .shapelayer path { animation: jt-fade 500ms var(--jt-ease) 1200ms backwards; }
+  /* Signature moment: the flow diagram assembles stage by stage, then its labels land. */
+  .st-key-sankey .js-plotly-plot .sankey { animation: jt-build 1700ms cubic-bezier(0.55, 0, 0.25, 1) 500ms backwards; }
+  .st-key-sankey .js-plotly-plot .sankey .node-label { animation: jt-fade 500ms var(--jt-ease) 1900ms backwards; }
+}
+
+/* ---------------------------------------------------------------- narrow screens */
+@media (max-width: 1100px) {
+  .jt-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .jt-strip .jt-stat:nth-child(4) { border-left: 0; padding-left: 0; }
+  .jt-strip .jt-stat:nth-child(n+4) { border-top: 1px solid var(--jt-rule); }
+  .jt-flow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  [data-testid="stMainBlockContainer"] { padding: 4.2rem 1rem 3rem; }
+  .jt-lede { font-size: 1.85rem; }
+  .jt-sec-title { font-size: 1.45rem; }
+  .jt-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .jt-strip .jt-stat { border-left: 0; padding-left: 0; border-top: 1px solid var(--jt-rule); }
+  .jt-stat-value { font-size: 2.3rem; }
+  .jt-lrow { grid-template-columns: minmax(0, 1fr) 5rem; }
+  .jt-lrow > :nth-child(2), .jt-lrow > :nth-child(3) { display: none; }
+  .jt-board { grid-template-columns: repeat(4, minmax(220px, 1fr)); }
+  .jt-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
