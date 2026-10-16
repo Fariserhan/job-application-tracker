@@ -7,7 +7,7 @@ situation → what I did → result, with the trade-off I'd expect a follow-up q
 
 > "I was applying to a lot of analyst roles and wanted to manage the search like a data
 > problem. I built a pipeline that reads my job-application emails from Gmail, classifies
-> them with a rule engine I evaluated at a measured F1 against a labelled test set, models
+> them with a rule engine I measured at 97.7% F1 on a blind labelled holdout, models
 > them into a star schema with dbt on DuckDB, and serves one SQL metric layer to a
 > Streamlit app, an Excel workbook and Power BI / Tableau measures. It showed me which
 > channels actually get replies — with confidence intervals, because one person's sample is
@@ -42,6 +42,10 @@ coverage (employer identified, reply date known…), and 50 dbt tests run in CI.
 **5. Measuring a classifier instead of trusting it.**
 The email parser is a deterministic rule engine with a labelled evaluation corpus —
 precision / recall / F1 and a status confusion matrix — and CI fails if accuracy drops.
+The corpus is split: rules were fixed against `dev` and `holdout-1`, while `holdout-2` was
+written afterwards and never tuned on. I quote that blind batch (97.7% event F1, 81.8%
+status, up from 85.7% / 59.1% for v1), not the 99.7% training-set score. *Expect:*
+"how do you know you didn't overfit?" → that is exactly what the blind split is for.
 Ambiguous cases can optionally go to Claude Haiku: rules first, one cached call per email,
 hard monthly budget, ~US$0.0001 per email. *Expect:* "why not just use an LLM?" → cost,
 privacy (clear-cut mail never leaves the machine), determinism and testability.
@@ -74,8 +78,8 @@ rate, median days to first reply, best channel. Quote your own results — never
 ### Example CV bullets
 
 - Built an end-to-end job-search analytics pipeline (Python, SQL, dbt, DuckDB, Streamlit)
-  that ingests Gmail, classifies emails with a rule engine evaluated at *F1 = X* on a
-  labelled set, and models the data into a tested star schema (50 dbt data tests in CI).
+  that ingests Gmail, classifies emails with a rule engine evaluated at 97.7% F1
+  on a blind labelled holdout (up from 85.7%), and models the data into a tested star schema (50 dbt data tests in CI).
 - Defined every KPI once in SQL and delivered it consistently to a web app, an Excel
   workbook and Power BI / Tableau measures; applied Wilson intervals and Kaplan–Meier
   survival analysis to avoid over-reading a small sample.
