@@ -20,6 +20,10 @@ import streamlit as st  # noqa: E402
 st.set_page_config(page_title="Job Search Analytics", page_icon=":material/insights:",
                    layout="wide", initial_sidebar_state="collapsed")
 
+from app import fresh  # noqa: E402
+
+fresh.purge_stale()  # after an update, never mix new page code with old helper modules
+
 from app.ui import data, masthead, theme  # noqa: E402
 
 PAGES = [
@@ -49,4 +53,5 @@ seen = f"_jt_seen_{page.url_path}"
 if st.session_state.get(seen):
     st.html('<div class="jt-calm"></div>')  # motion only on a page's first view
 st.session_state[seen] = True
+fresh.remember()
 page.run()
