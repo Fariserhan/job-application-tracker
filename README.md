@@ -1,95 +1,103 @@
-# Job Application Tracker
+# Job Search Analytics
 
-A personal job-application tracker: sync Gmail, filter out the noise, track every
-application automatically, and read the search through visualisations benchmarked against
-published hiring data.
+**My job hunt, run like a data product.** Gmail in; a tested star schema, one SQL metric
+layer, a Streamlit app, a written findings report and an Excel / Power BI / Tableau pack out.
 
-![Dashboard overview - funnel and benchmarks against published hiring data](docs/screenshots/dashboard-overview.png)
+[![CI](https://github.com/fariserhan/job-application-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/fariserhan/job-application-tracker/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11%E2%80%933.13-3776AB)
+![dbt](https://img.shields.io/badge/dbt-DuckDB-FF694B)
+![Streamlit](https://img.shields.io/badge/app-Streamlit-FF4B4B)
 
-_Screenshots run on a synthetic dataset (`demo_seed.py`) - no real application data._
+![Overview](docs/screenshots/overview.png)
 
-```bash
-launch_dashboard.bat        # or: streamlit run dashboard.py
+_Screenshots use the synthetic demo dataset — a generated inbox run through the real
+pipeline. No real application data is in this repository._
+
+## What it does
+
+1. **Reads my job-application email** from Gmail (read-only OAuth), quota-aware and
+   incremental.
+2. **Separates real application events from noise** — job alerts, digests, account emails,
+   marketing — with a deterministic rule engine whose accuracy is
+   [measured on a labelled corpus](docs/parser-evaluation.md) and gated in CI. Ambiguous
+   emails can optionally get a second opinion from Claude Haiku: rules first, one cached
+   call per email, a hard monthly budget (≈ US$0.0001 per email).
+3. **Keeps an append-only history** of every status change, dated by the email that caused
+   it, in SQLite.
+4. **Models it into a star schema with dbt on DuckDB** — staging, milestones, facts and
+   dimensions, covered by 50 data tests.
+5. **Defines every KPI once, in SQL** — response and interview rates with Wilson 95%
+   intervals, a Kaplan–Meier curve for time to first reply, funnel vs published benchmarks,
+   cohorts, channel effectiveness — and serves that one definition to every surface.
+
+## The surfaces
+
+| | |
+|---|---|
+| ![Analytics](docs/screenshots/analytics.png) | **Analytics** — funnel and Sankey flow, channel effectiveness with confidence intervals and the 6.87% direct-application benchmark, Kaplan–Meier reply times, cohorts, segments. |
+| ![Pipeline](docs/screenshots/pipeline.png) | **Pipeline** — kanban and table views, a per-application timeline built from the event log, notes, manual corrections, and logging applications that never sent an email. |
+| ![Data & model](docs/screenshots/data-model.png) | **Data & model** — the live dbt lineage graph, data-test results, coverage audit, the noise-filter audit and every metric's SQL. |
+
+Plus **Follow-ups** (who to chase, with draft emails), **Settings**, a written findings
+report (`python -m jobtracker report` → [sample](docs/sample-report.md)), and a BI pack
+(`python -m jobtracker export`): an Excel workbook with live formulas and native charts,
+star-schema CSVs, DAX measures, a Power BI theme and Tableau calculated fields — see
+[docs/bi](docs/bi/).
+
+## Architecture
+
+```mermaid
+flowchart LR
+    G[Gmail] --> P[Rule-based parser] -->|ambiguous only, opt-in| L[Claude Haiku]
+    P --> S[(SQLite + event log)]
+    L --> S
+    S --> W[(dbt · DuckDB<br/>star schema)] --> M[SQL metric layer]
+    M --> A[Streamlit app] & R[Findings report] & X[Excel] & B[Power BI · Tableau]
 ```
 
-Full documentation: **[docs/README.md](docs/README.md)**
+Details and the design decisions behind them: [docs/architecture.md](docs/architecture.md).
 
-## Layout
-
-```
-dashboard.py            the Streamlit app (run this)
-main.py                 the sync engine (Gmail -> parse -> warehouse)
-
-storage.py              SQLite operational store
-parser.py               email parsing + the anti-noise filter
-gmail_fetcher.py        Gmail API search and body fetching
-auth.py                 OAuth flow and token caching
-enricher.py             job-posting scraper (OpenGraph, SSRF-guarded)
-repair.py               audit and repair pass over stored rows
-
-warehouse.py            star-schema DDL + build entry point
-warehouse_etl.py        ETL from the operational tables into the star schema
-warehouse_queries.py    the SQL library (CTEs, window functions)
-bi_export.py            Excel / Power BI (DAX) / Tableau pack
-
-backfill_dates.py       one-off repair for last_updated semantics
-
-tests/                  hermetic unit tests
-docs/                   documentation
-.streamlit/config.toml  theme + server config
-
-demo_seed.py            synthetic dataset generator (screenshots / demos)
-demo_wrapper.py         dashboard on demo.db - never touches real data
-screenshots.py          README screenshot capture (Playwright)
-```
-
-Data files (created on first run, never committed):
-`applications.db`, `job_tracker.csv`, `sync_state.json`, `token.json`, `credentials.json`,
-`backups/`, `bi_pack/`.
+**Built to be honest about its data.** The funnel counts the furthest stage each application
+reached, so a rejection after an interview still counts as an interview. Unknown reply dates
+stay NULL instead of being zero-filled (a dbt test enforces it). Waiting applications are
+censored in the survival analysis instead of dropped. Every rate shows its confidence
+interval, because one person's job search is a small sample.
 
 ## Quick start
 
-1. `pip install -r requirements.txt`
-2. Double-click `launch_dashboard.bat`
-3. Click **Sync Gmail now**
-
-## Data architecture (star schema)
-
-Grain (what one row means):
-
-| Table | Grain |
-|---|---|
-| `fact_application` | one row per job application |
-| `fact_status_event` | one row per status change (append-only event log) |
-| `fact_application_skill` | one row per application x skill (bridge) |
-
-```
-  dim_date (marked date table)   dim_company   dim_platform   dim_status
-          \                          |              |             /
-           \                         |              |            /
-            +-----------------> fact_application <--------------+
-                                     |
-          dim_role_family            |          dim_skill
-          dim_seniority              v
-          dim_industry        fact_status_event
-          dim_job_type                |
-                                      v
-                               fact_application_skill
-
-  reporting view: vw_application_analysis (denormalised, safe to import into
-  Power BI / Tableau in one step)
-```
-
-**Four surfaces, one metric definition:** `warehouse_queries.py` computes every metric
-once in SQL (CTEs, window functions). The Streamlit dashboard and the Excel exports read
-those results; `bi_export.py` ships the matching DAX measures and Tableau calculated
-fields written against the same tables and validated to agree - so the dashboard, the
-workbook, the Power BI report and the Tableau view cannot drift apart. Unknown values
-stay NULL everywhere (never zero-filled).
-
-## Tests
-
 ```bash
-run_tests.bat
-# or: venv\Scripts\python.exe -m unittest discover -s tests
+python -m venv venv && venv/bin/pip install -r requirements.txt   # Windows: venv\Scripts\...
+python -m jobtracker demo                        # synthetic inbox through the real pipeline
+JOBTRACKER_DATA_DIR=demo_data streamlit run app/streamlit_app.py
 ```
+
+With your own Gmail: [docs/setup.md](docs/setup.md) (about 5 minutes for the OAuth client),
+then `python -m jobtracker sync` or the **Sync Gmail** button. On Windows,
+`launch_app.bat` starts the app.
+
+```text
+python -m jobtracker sync [--full]   pull Gmail -> parse -> store -> warehouse
+python -m jobtracker report          written findings from your own data
+python -m jobtracker export          Excel workbook + Power BI / Tableau pack
+python -m jobtracker eval            parser accuracy on the labelled corpus
+python -m jobtracker check           data-quality audit
+```
+
+## Engineering
+
+- `jobtracker/` — typed Python package: `parsing/`, `store/` (versioned migrations,
+  automatic backups), `gmail/` (batched, adaptive quota pacing), `warehouse/` (extract-load,
+  a dependency-free runner for the dbt models, the metric layer), `bi/`, `report.py`.
+- `dbt/` — the warehouse. CI runs real `dbt build`; the app runs the same SQL files
+  through the built-in runner, so end users don't need dbt installed.
+- `tests/` — hermetic pytest suite (no network, temp data): merge rules, the v1 → v2
+  migration, metric results cross-checked against reference implementations, the SSRF
+  guard on the posting scraper, the Claude fallback's budget and cache, the app's pages.
+- CI on Linux and Windows across Python 3.11–3.13: ruff, mypy, tests, the parser accuracy
+  gate, and `dbt build` + docs.
+
+## Privacy
+
+Gmail access is read-only. Email bodies stay in the local SQLite cache and never enter the
+warehouse or any export. The Claude fallback is off unless you turn it on, and then only
+ever sees emails the rules could not classify. The hosted demo runs on synthetic data only.
