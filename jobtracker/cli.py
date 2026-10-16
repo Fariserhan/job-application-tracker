@@ -8,6 +8,7 @@
     repair [--apply]    re-judge stored rows with the current rules (backs up first)
     reparse             re-run the current parser over the cached email bodies (offline)
     export              write the Excel workbook + Power BI / Tableau pack
+    report [--out F]    write the findings report (Markdown) from the warehouse
     eval                score the parser against the labelled email corpus
     backup              snapshot the database
     app                 launch the Streamlit app
@@ -116,6 +117,16 @@ def cmd_export(args, settings) -> int:
     return 0
 
 
+def cmd_report(args, settings) -> int:
+    from pathlib import Path
+
+    from .report import write_report
+
+    path = write_report(settings, Path(args.out) if args.out else None, demo=args.demo)
+    print(f"report written: {path}")
+    return 0
+
+
 def cmd_eval(args, settings) -> int:
     from .parsing.evaluate import main as evaluate
 
@@ -156,6 +167,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--apply", action="store_true")
     sub.add_parser("reparse")
     sub.add_parser("export")
+    p = sub.add_parser("report")
+    p.add_argument("--out")
+    p.add_argument("--demo", action="store_true", help="label the report as synthetic data")
     p = sub.add_parser("eval")
     p.add_argument("--write", action="store_true", help="write docs/parser-evaluation.md")
     sub.add_parser("backup")

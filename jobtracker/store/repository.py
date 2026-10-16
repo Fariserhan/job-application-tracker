@@ -404,6 +404,22 @@ class Repository:
                     self._log_event(conn, thread_id, domain.APPLIED, status, day, "manual")
         return thread_id
 
+    def record_follow_up(self, thread_id: str, note: str = "") -> bool:
+        """Log that the candidate chased this application: a dated line is appended to the
+        notes and the silence clock restarts (``last_updated`` = today), so the follow-up
+        queue and the ghosting rule measure silence since the nudge, not since applying."""
+        day = _today()
+        line = f"[{day}] Followed up" + (f": {note.strip()}" if note.strip() else "")
+        with self.connect() as conn:
+            row = conn.execute("SELECT notes FROM applications WHERE thread_id=?",
+                               (thread_id,)).fetchone()
+            if not row:
+                return False
+            notes = "\n".join(filter(None, [(row["notes"] or "").strip(), line]))
+            conn.execute("UPDATE applications SET notes=?, last_updated=?, updated_at=? "
+                         "WHERE thread_id=?", (notes[-4000:], day, now(), thread_id))
+        return True
+
     def delete_application(self, thread_id: str) -> bool:
         with self.connect() as conn:
             conn.execute("DELETE FROM status_events WHERE thread_id=?", (thread_id,))

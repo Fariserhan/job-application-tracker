@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from ..domain import APPLIED, ASSESSMENT, INTERVIEW, OFFER, REJECTED
+from .extract import is_platform_company, looks_like_role
 from .pipeline import ParsedMessage, finalize
 from .text import sanitize_body
 
@@ -214,8 +215,10 @@ class LLMAssist:
         if result.is_event:
             if result.status in (APPLIED, ASSESSMENT, INTERVIEW, OFFER, REJECTED):
                 msg.detected_status = result.status
-            if result.company and (msg.company_name in ("", "Unknown")):
+            # The fallback only ever sees mail the rules found ambiguous, so a confident,
+            # named employer / title beats the rules' guess (often a sender-domain label).
+            if result.company and not is_platform_company(result.company):
                 msg.company_name = result.company
-            if result.role and not msg.role_title:
+            if result.role and looks_like_role(result.role):
                 msg.role_title = result.role
         return finalize(msg)

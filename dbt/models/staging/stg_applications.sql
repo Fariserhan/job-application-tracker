@@ -12,11 +12,13 @@ cleaned as (
         nullif(trim(role_title), '')                                 as role_title,
         coalesce(nullif(trim(source_platform), ''), 'Other')         as platform,
         try_cast(substr(application_date, 1, 10) as date)            as applied_date,
-        case trim(current_status)
-            when 'Screening/OA' then 'Assessment / OA'
-            when 'Ghosted/Inactive' then 'Ghosted'
-            when 'Response' then 'Assessment / OA'
-            else trim(current_status)
+        case
+            when trim(current_status) in ('Saved / Planning', 'Applied', 'Assessment / OA',
+                                          'Interview', 'Offer', 'Rejected', 'Ghosted',
+                                          'Withdrawn') then trim(current_status)
+            when trim(current_status) in ('Screening/OA', 'Response') then 'Assessment / OA'
+            when trim(current_status) = 'Ghosted/Inactive' then 'Ghosted'
+            else 'Applied'  -- any unrecognised legacy value is treated as still open
         end                                                          as current_status,
         try_cast(substr(last_updated, 1, 10) as date)                as last_activity_date,
         nullif(trim(job_description_snippet), '')                    as job_description,

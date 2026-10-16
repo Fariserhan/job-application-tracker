@@ -12,25 +12,31 @@ models:
       - name: company_key
         tests:
           - not_null
-          - relationships: {to: ref('dim_company'), field: company_key}
+          - relationships:
+              arguments: {to: ref('dim_company'), field: company_key}
       - name: platform_key
         tests:
           - not_null
-          - relationships: {to: ref('dim_platform'), field: platform_key}
+          - relationships:
+              arguments: {to: ref('dim_platform'), field: platform_key}
       - name: status_key
         tests:
           - not_null
-          - relationships: {to: ref('dim_status'), field: status_key}
+          - relationships:
+              arguments: {to: ref('dim_status'), field: status_key}
       - name: role_family_key
         tests:
-          - relationships: {to: ref('dim_role_family'), field: role_family_key}
+          - relationships:
+              arguments: {to: ref('dim_role_family'), field: role_family_key}
       - name: applied_date
         tests:
           - not_null
-          - relationships: {to: ref('dim_date'), field: date_day}
+          - relationships:
+              arguments: {to: ref('dim_date'), field: date_day}
       - name: max_stage_reached
         tests:
-          - accepted_values: {values: [1, 2, 3, 4], quote: false}
+          - accepted_values:
+              arguments: {values: [1, 2, 3, 4], quote: false}
       - name: days_to_response
         description: Days from application to the first employer response; NULL when unknown.
   - name: fct_status_events
@@ -40,7 +46,8 @@ models:
         tests: [unique, not_null]
       - name: application_id
         tests:
-          - relationships: {to: ref('fct_applications'), field: application_id}
+          - relationships:
+              arguments: {to: ref('fct_applications'), field: application_id}
   - name: dim_date
     description: Marked date table — contiguous days from the first application to today.
     columns:
