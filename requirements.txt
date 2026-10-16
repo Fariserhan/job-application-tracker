@@ -1,7 +1,10 @@
-google-api-python-client>=2.100.0
-google-auth>=2.23.0
-google-auth-oauthlib>=1.0.0
-requests>=2.31.0
-streamlit>=1.36.0
-pandas>=2.0.0
-plotly>=5.22.0
+# Runtime: the app, the Gmail sync and the warehouse. (Streamlit Community Cloud installs this.)
+duckdb>=1.1
+pandas>=2.1
+plotly>=5.22
+streamlit>=1.40
+openpyxl>=3.1
+requests>=2.31
+google-api-python-client>=2.100
+google-auth>=2.23
+google-auth-oauthlib>=1.0

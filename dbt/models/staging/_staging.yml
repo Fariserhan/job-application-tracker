@@ -12,7 +12,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['Applied', 'Assessment / OA', 'Interview', 'Offer', 'Rejected', 'Ghosted', 'Withdrawn']
+              arguments:
+                values: ['Applied', 'Assessment / OA', 'Interview', 'Offer', 'Rejected', 'Ghosted', 'Withdrawn']
   - name: stg_status_events
     description: Typed status events with their funnel stage and a date-trust flag.
     columns:

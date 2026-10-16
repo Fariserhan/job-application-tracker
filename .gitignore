@@ -57,3 +57,4 @@ desktop.ini
 demo.db
 demo_job_tracker.csv
 demo_sync_state.json
+dbt/.user.yml
