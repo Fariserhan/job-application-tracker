@@ -74,5 +74,10 @@ Data rules (do not break them):
   The stylesheet must not contain `<` (Streamlit's HTML sanitiser drops the whole block;
   `load_css()` raises). Colours are pinned in `app/ui/theme.py` and mirrored in
   `jobtracker/bi/style.py`. Change both together. Motion respects `prefers-reduced-motion`.
+- Usability rules for the app: every number, chart mark and row that stands for a set of
+  applications opens that set (`app/ui/drill.py`: `open_set`, `open_application`, clickable
+  `charts.show(..., clickable=True)`), filtered in SQL through `Filters`. Charts never zoom or
+  drag (`charts.lock`). Every chart carries `ui.explain(how, means)` in plain English. No em
+  dashes in user-facing text (a test checks every page).
 - Hermetic pytest per module (network mocked, data in temp dirs). Add a test for
   non-trivial changes. Structural code search: prefer `ast-grep`, scoped paths.
