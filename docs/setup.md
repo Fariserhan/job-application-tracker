@@ -36,9 +36,22 @@ venv\Scripts\python.exe -m jobtracker sync
 
 Or click **Sync Gmail** in the app (`launch_app.bat`).
 
-## 3. Upgrading from v1
+## 3. Upgrading from v1 / getting updates
 
-Nothing to do. If `applications.db` is still in the project root, the app keeps using the
+**Windows, one step:** open the project folder, click the address bar, type `cmd`, press
+Enter, then paste this line and press Enter:
+
+```bat
+git pull origin master && update.bat
+```
+
+From then on, just double-click **`update.bat`** whenever you want the latest version. It
+downloads it, rebuilds the Python environment if it is too old, installs the requirements,
+syncs Gmail and opens the app. Your data is untouched. The first run re-reads the whole
+mailbox once so every email is judged by the current parser (a few minutes); later runs only
+fetch new mail.
+
+Data needs nothing. If `applications.db` is still in the project root, the app keeps using the
 root as its data directory. On first start the schema is migrated in place to v2 — after an
 automatic backup in `backups\<timestamp>-pre-v2-migration\` — your notes, manual
 corrections and status history are preserved. To move to the new layout, move

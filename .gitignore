@@ -58,3 +58,6 @@ demo.db
 demo_job_tracker.csv
 demo_sync_state.json
 dbt/.user.yml
+
+# update.bat: marks that the one-off full re-sync after upgrading has run
+.full-sync-done
