@@ -1,55 +1,57 @@
+# Editorial "paper" theme. Tokens mirror app/ui/theme.py and app/assets/style.css — one
+# palette, three consumers (Streamlit widgets, the Plotly template, the HTML components) —
+# and the BI pack's Excel / Power BI themes.
 [theme]
-base = "dark"
-primaryColor = "#60A5FA"
-backgroundColor = "#0F172A"
-secondaryBackgroundColor = "#1E293B"
-codeBackgroundColor = "#1E293B"
-textColor = "#F1F5F9"
-linkColor = "#60A5FA"
-borderColor = "#334155"
-codeTextColor = "#CBD5E1"
+base = "light"
+primaryColor = "#1D3FBB"
+backgroundColor = "#F7F5F0"
+secondaryBackgroundColor = "#EFEBE3"
+codeBackgroundColor = "#F1EEE7"
+textColor = "#191919"
+linkColor = "#1D3FBB"
+borderColor = "#E3DED5"
+codeTextColor = "#3A3732"
 showWidgetBorder = true
 showSidebarBorder = true
-baseRadius = "6px"
-buttonRadius = "6px"
+baseRadius = "4px"
+buttonRadius = "4px"
 
 font = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-headingFont = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@600;700&display=swap"
+headingFont = "'Newsreader':https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap"
 codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
-baseFontSize = 14
+baseFontSize = 15
 baseFontWeight = 400
-codeFontSize = "13px"
-headingFontSizes = ["28px", "22px", "18px", "16px", "14px", "12px"]
-headingFontWeights = [700, 600, 600, 600, 500, 500]
+codeFontSize = "12.5px"
+headingFontSizes = ["40px", "28px", "22px", "18px", "15px", "13px"]
+headingFontWeights = [400, 400, 500, 600, 600, 600]
 linkUnderline = false
 
-greenColor = "#34D399"
-redColor = "#F87171"
-yellowColor = "#FBBF24"
-orangeColor = "#FB923C"
-blueColor = "#60A5FA"
-violetColor = "#A78BFA"
-grayColor = "#94A3B8"
+greenColor = "#2E7D4F"
+redColor = "#C04A32"
+yellowColor = "#B7791F"
+orangeColor = "#B7791F"
+blueColor = "#1D3FBB"
+violetColor = "#6B7FD7"
+grayColor = "#8A857C"
 
+# Accent first, then the validated outcome colours, then context greys.
 chartCategoricalColors = [
-    "#60A5FA", "#34D399", "#A78BFA", "#F87171",
-    "#FBBF24", "#38BDF8", "#94A3B8", "#FB923C",
+    "#1D3FBB", "#6B7FD7", "#2E7D4F", "#C04A32", "#B7791F", "#A39E94", "#5F5B54", "#C9C3B8",
 ]
 chartSequentialColors = [
-    "#0C4A6E", "#075985", "#0369A1", "#0284C7", "#0EA5E9",
-    "#38BDF8", "#7DD3FC", "#BAE6FD", "#E0F2FE", "#F0F9FF",
+    "#F1EEE7", "#DCE3FA", "#C2CEF5", "#9AABEB", "#7B91E0",
+    "#5C77D6", "#3F5DCB", "#2E4EC3", "#1D3FBB", "#162F8C",
 ]
 
-dataframeBorderColor = "#334155"
-dataframeHeaderBackgroundColor = "#1E293B"
+dataframeBorderColor = "#E3DED5"
+dataframeHeaderBackgroundColor = "#F1EEE7"
 
 [theme.sidebar]
-backgroundColor = "#0F172A"
-secondaryBackgroundColor = "#1E293B"
-codeBackgroundColor = "#1E293B"
-textColor = "#F1F5F9"
-borderColor = "#334155"
-primaryColor = "#60A5FA"
+backgroundColor = "#F1EEE7"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#191919"
+borderColor = "#E3DED5"
+primaryColor = "#1D3FBB"
 
 [server]
 headless = true
@@ -57,3 +59,6 @@ address = "0.0.0.0"
 
 [browser]
 gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
