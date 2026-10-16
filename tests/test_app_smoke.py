@@ -245,3 +245,26 @@ def test_a_link_to_one_application_opens_its_sheet(demo_dirs):
         # is exercised in the browser walkthrough; AppTest does not rerun dialog fragments.)
         assert any(k.startswith("qs_Interview_") for k in keys)
         assert "Sheet Test Co" in _texts(at)
+
+
+def test_stale_modules_are_reloaded_after_an_update(tmp_path):
+    """Streamlit Cloud pulls new code into a running app; a helper module imported before
+    the update must be dropped so the new page script never meets the old version."""
+    import types
+
+    from app import fresh
+
+    fresh.purge_stale()  # past the first call of this process
+    source = tmp_path / "probe.py"
+    source.write_text("X = 1\n", encoding="utf-8")
+    probe = types.ModuleType("jobtracker._fresh_probe")
+    probe.__file__ = str(source)
+    sys.modules["jobtracker._fresh_probe"] = probe
+    try:
+        fresh.remember()
+        assert fresh.purge_stale() == []  # nothing changed yet
+        os.utime(source, (source.stat().st_atime, source.stat().st_mtime + 5))
+        assert "jobtracker._fresh_probe" in fresh.purge_stale()  # the update is noticed
+        assert "jobtracker._fresh_probe" not in sys.modules
+    finally:
+        sys.modules.pop("jobtracker._fresh_probe", None)
