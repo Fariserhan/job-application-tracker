@@ -2,15 +2,15 @@
 
 Off by default. When enabled it is deliberately cheap and bounded:
 
-* **rules first** — only messages whose rule verdict is ambiguous (``ParsedMessage.ambiguous``)
+* **rules first**: only messages whose rule verdict is ambiguous (``ParsedMessage.ambiguous``)
   and that were freshly downloaded are ever sent; clear-cut mail never leaves the machine
-* **cheapest model** — Claude Haiku 5.5 by default (configurable), low effort, thinking off,
+* **cheapest model**: Claude Haiku 5.5 by default (configurable), low effort, thinking off,
   ~300 output tokens of structured JSON
-* **one call per email, ever** — results are cached in ``llm_calls`` by Gmail message id, so
+* **one call per email, ever**: results are cached in ``llm_calls`` by Gmail message id, so
   re-syncs and force-full re-parses replay the cached answer for free
-* **trimmed input** — subject, sender and the first ~1,500 chars of the sanitised body
-* **cached system prompt** — the instructions are a stable prefix marked for prompt caching
-* **hard monthly budget** — spend is tracked per call; at the cap the fallback switches off
+* **trimmed input**: subject, sender and the first ~1,500 chars of the sanitised body
+* **cached system prompt**: the instructions are a stable prefix marked for prompt caching
+* **hard monthly budget**: spend is tracked per call; at the cap the fallback switches off
 
 Typical cost: ~700 input + ~80 output tokens ≈ $0.0001 per ambiguous email on Haiku 5.5.
 """

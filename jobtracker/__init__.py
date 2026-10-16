@@ -1,4 +1,4 @@
-"""jobtracker — Gmail-to-warehouse job application analytics.
+"""jobtracker: Gmail-to-warehouse job application analytics.
 
 Pipeline: Gmail -> deterministic parser (optional Claude fallback for ambiguous mail)
 -> SQLite operational store (append-only status events) -> DuckDB star schema (dbt models)

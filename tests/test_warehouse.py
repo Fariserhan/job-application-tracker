@@ -204,3 +204,57 @@ def test_compose_merges_leading_with():
 def test_segment_whitelist(metrics):
     with pytest.raises(ValueError):
         metrics.query("segment_performance", segment="1; drop table x")
+
+
+# --------------------------------------------------------------------------- drill-down filters
+
+@pytest.mark.parametrize("key, expected", [
+    ("response", lambda f: f.is_response),
+    ("no_response", lambda f: ~f.is_response),
+    ("assessment", lambda f: f.reached_assessment),
+    ("interview", lambda f: f.reached_interview),
+    ("offer", lambda f: f.reached_offer),
+    ("rejected", lambda f: f.is_rejected),
+    ("ghosted", lambda f: f.is_ghosted),
+    ("active", lambda f: f.is_active),
+    ("awaiting", lambda f: f.is_active & (f.max_stage_reached == 1)),
+    ("in_progress", lambda f: f.is_active & (f.max_stage_reached >= 2)),
+    ("follow_up", lambda f: f.is_active & (f.days_since_activity >= 7)),
+    ("dated_reply", lambda f: f.days_to_response.notna()),
+])
+def test_reached_filter_selects_exactly_the_stage_set(demo, facts, key, expected):
+    with connect(demo) as con:
+        rows = Metrics(con, demo, Filters(reached=[key])).query("applications")
+    want = set(facts.loc[expected(facts).fillna(False).astype(bool), "application_id"])
+    assert want, f"demo data has no {key!r} applications"
+    assert set(rows.application_id) == want
+
+
+def test_drill_filters_combine_and_feed_every_metric(demo, facts):
+    month = str(pd.to_datetime(facts.applied_date).dt.strftime("%Y-%m").mode().iloc[0])
+    with connect(demo) as con:
+        drill = Metrics(con, demo, Filters(reached=["interview"], month=month,
+                                           platforms=["LinkedIn", "JobStreet"]))
+        rows = drill.query("applications")
+        kpis = drill.kpis()
+    mask = (facts.reached_interview
+            & (pd.to_datetime(facts.applied_date).dt.strftime("%Y-%m") == month)
+            & facts.platform.isin(["LinkedIn", "JobStreet"]))
+    assert set(rows.application_id) == set(facts.loc[mask, "application_id"])
+    assert kpis["applications"] == int(mask.sum())
+    assert kpis["interviews"] == int(mask.sum())  # every row in the set reached interview
+
+
+@pytest.mark.parametrize("attr, column", [("companies", "company_name"),
+                                          ("seniorities", "seniority"),
+                                          ("channels", "channel")])
+def test_exact_dimension_filters(demo, facts, attr, column):
+    value = str(facts[column].mode().iloc[0])
+    with connect(demo) as con:
+        rows = Metrics(con, demo, Filters(**{attr: [value]})).query("applications")
+    assert set(rows.application_id) == set(facts.loc[facts[column] == value, "application_id"])
+
+
+def test_unknown_stage_set_is_rejected():
+    with pytest.raises(ValueError):
+        Filters(reached=["1=1; drop table x"]).clause()

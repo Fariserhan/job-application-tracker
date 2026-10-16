@@ -1,4 +1,4 @@
-"""Job Search Analytics — Streamlit entry point.
+"""Job Search Analytics: the Streamlit entry point.
 
     streamlit run app/streamlit_app.py            # your data (JOBTRACKER_DATA_DIR or ./data)
     JOBTRACKER_DEMO=1 streamlit run app/streamlit_app.py   # synthetic demo
@@ -40,8 +40,13 @@ PAGES = [
 theme.load_css()
 runtime = data.refresh_runtime()
 page = st.navigation(PAGES, position="top")
+data.sync_url()  # filters <-> URL, so drill-down links and Back land on the same view
 masthead.render(runtime, show_filters=page.url_path != "settings")
 data.show_flash()
 for warning in runtime.warnings:
     st.warning(warning, icon=":material/warning:")
+seen = f"_jt_seen_{page.url_path}"
+if st.session_state.get(seen):
+    st.html('<div class="jt-calm"></div>')  # motion only on a page's first view
+st.session_state[seen] = True
 page.run()

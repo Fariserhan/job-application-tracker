@@ -3,9 +3,9 @@
 Gmail's ``q`` syntax is a conjunction of OR-groups. To avoid missing real application mail
 the search matches on three independent signals:
 
-1. sender domains — job boards / ATS platforms applications are sent through
-2. subject terms  — application / interview / assessment wording
-3. body phrases   — so employer-hosted ATS domains we cannot enumerate still match
+1. sender domains: job boards / ATS platforms applications are sent through
+2. subject terms: application / interview / assessment wording
+3. body phrases, so employer-hosted ATS domains we cannot enumerate still match
 
 then subtracts known marketing templates. Spam is included (``in:anywhere -in:trash``)
 because Gmail occasionally misroutes real confirmations there; the parser removes noise.

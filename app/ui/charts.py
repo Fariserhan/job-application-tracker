@@ -3,13 +3,13 @@
 Grammar, enforced here so pages only choose *what* to show:
 
 * the chart title lives in HTML above the figure (it is the takeaway sentence); figures
-  carry no title and no legend — series are labelled directly at their ends
+  carry no title and no legend; series are labelled directly at their ends
 * grey for context, the accent for the thing that matters, green/brick only for outcome
 * one value axis (never dual-axis), light value gridlines, no axis lines, muted ticks,
   generous margins and ``cliponaxis=False`` so labels never clip
 * every rate shown with its sample size; intervals are Wilson 95%
 
-Builders take a metric frame exactly as the SQL layer returns it — reshaping only.
+Builders take a metric frame exactly as the SQL layer returns it, reshaping only.
 """
 from __future__ import annotations
 
@@ -25,7 +25,11 @@ from jobtracker import benchmarks as bm
 from . import theme
 
 TEMPLATE = "jobtracker-paper"
-CONFIG = {"displayModeBar": False, "responsive": True, "scrollZoom": False}
+# Charts are read, hovered and clicked, never zoomed or dragged: a stray drag used to zoom
+# into a corner with no visible way back.
+CONFIG = {"displayModeBar": False, "responsive": True, "scrollZoom": False,
+          "doubleClick": False, "showAxisDragHandles": False,
+          "showAxisRangeEntryBoxes": False, "editable": False, "showTips": False}
 LABEL = dict(family=theme.SANS, size=11.5, color=theme.INK_2)
 LABEL_INK = dict(family=theme.SANS, size=12, color=theme.INK)
 
@@ -35,7 +39,7 @@ def _axis(**extra) -> dict:
                 tickfont=dict(family=theme.SANS, size=11, color=theme.INK_3),
                 title=dict(font=dict(family=theme.SANS, size=11.5, color=theme.INK_3),
                            standoff=12),
-                automargin=True, **extra)
+                automargin=True, fixedrange=True, **extra)
 
 
 def _register() -> None:
@@ -47,7 +51,7 @@ def _register() -> None:
         xaxis=_axis(showgrid=False), yaxis=_axis(showgrid=True),
         hoverlabel=dict(bgcolor=theme.SURFACE, bordercolor=theme.RULE,
                         font=dict(family=theme.SANS, size=12, color=theme.INK), align="left"),
-        hovermode="closest", bargap=0.42, separators=".,",
+        hovermode="closest", bargap=0.42, separators=".,", dragmode=False,
     ))
 
 
@@ -58,7 +62,8 @@ def base(height: int = 320, **layout) -> go.Figure:
     """New figure on the paper template. Backgrounds/legend are also set on the layout:
     Streamlit's renderer paints its theme over template-level values."""
     fig = go.Figure()
-    settings = dict(template=TEMPLATE, height=height, paper_bgcolor="rgba(0,0,0,0)",
+    settings = dict(template=TEMPLATE, height=height, dragmode=False,
+                    paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)", showlegend=False,
                     font=dict(family=theme.SANS, size=12, color=theme.INK_2))
     settings.update(layout)
@@ -66,10 +71,36 @@ def base(height: int = 320, **layout) -> go.Figure:
     return fig
 
 
-def show(fig: go.Figure, key: str | None = None) -> None:
-    """Render with the app config. Keys prefixed ``h-`` mark horizontal bars (the motion
-    layer grows those from the left instead of from the baseline)."""
-    st.plotly_chart(fig, theme=None, config=CONFIG, key=key)
+def lock(fig: go.Figure) -> go.Figure:
+    """No zoom, pan or drag on any axis, whatever a builder set."""
+    fig.update_layout(dragmode=False)
+    fig.update_xaxes(fixedrange=True)
+    fig.update_yaxes(fixedrange=True)
+    return fig
+
+
+def show(fig: go.Figure, key: str, clickable: bool = False) -> dict | None:
+    """Render with the app config. Keys containing ``h-`` mark horizontal bars (the motion
+    layer grows those from the left instead of from the baseline).
+
+    ``clickable`` charts return the point the reader just clicked (once), so the page can
+    open the applications behind it. The chart is re-keyed after a click, which clears
+    Plotly's selection dimming on the next run instead of leaving the chart greyed out."""
+    lock(fig)
+    if not clickable:
+        st.plotly_chart(fig, theme=None, config=CONFIG, key=key)
+        return None
+    gen_key = f"_jt_gen_{key}"
+    gen = int(st.session_state.get(gen_key, 0))
+    event = st.plotly_chart(fig, theme=None, config=CONFIG, key=f"pick-{key}-v{gen}",
+                            on_select="rerun", selection_mode="points")
+    points = list(getattr(getattr(event, "selection", None), "points", None) or [])
+    if not points and isinstance(event, dict):
+        points = list((event.get("selection") or {}).get("points") or [])
+    if points:
+        st.session_state[gen_key] = gen + 1
+        return dict(points[0])
+    return None
 
 
 def _num(value) -> float | None:
@@ -83,7 +114,7 @@ def _num(value) -> float | None:
 def fmt_days(value) -> str:
     v = _num(value)
     if v is None:
-        return "—"
+        return "-"
     return f"{v:.0f} d" if v.is_integer() else f"{v:.1f} d"
 
 
@@ -121,7 +152,7 @@ def sankey(frame: pd.DataFrame, height: int = 440) -> go.Figure:
 
     fig = base(height, margin=dict(l=2, r=2, t=6, b=6))
     fig.add_trace(go.Sankey(
-        arrangement="snap", valueformat=",d",
+        arrangement="fixed", valueformat=",d",
         node=dict(label=[f"{n}  {totals[n]:,}" for n in names],
                   color=[theme.FLOW_COLORS.get(n, theme.INK_3) for n in names],
                   pad=26, thickness=6, line=dict(width=0),
@@ -139,7 +170,7 @@ def sankey(frame: pd.DataFrame, height: int = 440) -> go.Figure:
 
 def funnel(frame: pd.DataFrame, height: int = 320) -> go.Figure:
     """Applications per 100 sent (accent bar) with the published per-100 range on its own
-    thin grey row directly beneath each benchmarked stage, labelled — the two never overlap."""
+    thin grey row directly beneath each benchmarked stage, labelled, so the two never overlap."""
     data = frame.sort_values("stage_order").reset_index(drop=True)
     n = len(data)
     ys = [n - 1 - i for i in range(n)]
@@ -151,8 +182,8 @@ def funnel(frame: pd.DataFrame, height: int = 320) -> go.Figure:
         textposition="outside", cliponaxis=False, textfont=LABEL_INK,
         customdata=data[["stage", "applications", "step_conversion_pct", "vs_benchmark"]].to_numpy(),
         hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]:,} applications · "
-                      "%{x:.1f} per 100<br>%{customdata[2]:.1f}% of previous stage"
-                      "<extra></extra>",
+                      "%{x:.1f} per 100<br>%{customdata[2]:.1f}% of the stage before"
+                      "<br><i>Click to see these applications</i><extra></extra>",
     )
     for y, row in zip(ys, data.itertuples(index=False), strict=False):
         if pd.isna(row.benchmark_per_100_lo):
@@ -160,7 +191,7 @@ def funnel(frame: pd.DataFrame, height: int = 320) -> go.Figure:
         lo, hi = float(row.benchmark_per_100_lo), float(row.benchmark_per_100_hi)
         fig.add_shape(type="rect", x0=lo, x1=max(hi, lo + 0.6), y0=y - 0.3, y1=y - 0.16,
                       fillcolor=theme.GREY_DARK, line=dict(width=0))
-        fig.add_annotation(x=max(hi, lo + 0.6), y=y - 0.23, text=f"published {lo:g}–{hi:g}",
+        fig.add_annotation(x=max(hi, lo + 0.6), y=y - 0.23, text=f"published {lo:g} to {hi:g}",
                            showarrow=False, xanchor="left", xshift=6,
                            font=dict(size=10.5, color=theme.INK_3))
     fig.update_yaxes(tickmode="array", tickvals=ys,
@@ -216,11 +247,13 @@ def rate_ci(frame: pd.DataFrame, label_col: str, reference: float | None = None,
         customdata=data[["applications", "responses", "response_rate_lo",
                          "response_rate_hi"]].to_numpy(),
         hovertemplate="<b>%{y}</b><br>%{x:.1f}% replied (%{customdata[1]} of %{customdata[0]})"
-                      "<br>95% interval %{customdata[2]:.1f}–%{customdata[3]:.1f}%<extra></extra>",
+                      "<br>Likely range %{customdata[2]:.1f} to %{customdata[3]:.1f}%"
+                      "<br><i>Click to see these applications</i><extra></extra>",
     )
     conf = data[confidence_col].tolist() if confidence_col else [""] * len(data)
     for lbl, n, c in zip(labels, data["applications"], conf, strict=False):
-        tag = f"n = {int(n)}" + (f" · {c.lower()}" if c and c != "Adequate" else "")
+        tag = f"{int(n)} sent" + (", too few" if c == "Too small" else
+                                  ", early" if c == "Indicative" else "")
         fig.add_annotation(x=1.0, xref="paper", y=lbl, text=tag, showarrow=False, xanchor="left",
                            xshift=14, font=dict(size=11, color=theme.INK_3))
     if reference is not None:
@@ -229,7 +262,7 @@ def rate_ci(frame: pd.DataFrame, label_col: str, reference: float | None = None,
                            text=reference_label, font=dict(size=11, color=theme.INK),
                            xanchor="left", xshift=5)
     fig.update_xaxes(range=[0, 101], ticksuffix="%", showgrid=True,
-                     title_text="Response rate · grey bar = 95% Wilson interval")
+                     title_text="Share that got a reply (grey bar: likely range)")
     fig.update_yaxes(showgrid=False, tickfont=dict(size=12, color=theme.INK))
     return fig
 
@@ -245,10 +278,12 @@ def interview_rates(frame: pd.DataFrame, height: int | None = None) -> go.Figure
               for d, c in zip(data["is_direct"], data["sample_confidence"], strict=False)]
     fig.add_bar(y=data["platform"], x=data["interview_rate_pct"], orientation="h", width=0.5,
                 marker=dict(color=colors, cornerradius=2),
-                text=[f"{v:.1f}%  n={n}" for v, n in zip(data["interview_rate_pct"],
-                                                         data["applications"], strict=False)],
+                text=[f"{v:.1f}%  ({n} sent)" for v, n in zip(data["interview_rate_pct"],
+                                                              data["applications"], strict=False)],
                 textposition="outside", cliponaxis=False, textfont=LABEL,
-                hovertemplate="<b>%{y}</b><br>%{x:.1f}% reached interview<extra></extra>")
+                customdata=data[["platform"]].to_numpy(),
+                hovertemplate="<b>%{y}</b><br>%{x:.1f}% reached an interview"
+                              "<br><i>Click to see these applications</i><extra></extra>")
     top = min(105.0, max(25.0, float(data["interview_rate_pct"].max() or 0) * 1.3))
     for value, text, lift in ((bm.DIRECT_INTERVIEW_RATE_PCT,
                                f"Direct benchmark {bm.DIRECT_INTERVIEW_RATE_PCT}%", 0),
@@ -290,10 +325,11 @@ def volume_vs_rate(frame: pd.DataFrame, height: int = 360) -> go.Figure:
                      color=theme.GREY, thickness=2, width=0),
         marker=dict(size=11, color=[theme.PAPER if h else c for h, c in zip(hollow, colors, strict=False)],
                     line=dict(color=colors, width=2)),
-        customdata=frame[["sample_confidence", "response_rate_lo", "response_rate_hi"]].to_numpy(),
+        customdata=frame[["sample_confidence", "response_rate_lo", "response_rate_hi",
+                          "platform"]].to_numpy(),
         hovertemplate="<b>%{text}</b><br>%{x} applications · %{y:.1f}% replied"
-                      "<br>95% interval %{customdata[1]:.1f}–%{customdata[2]:.1f}%"
-                      "<br>Sample: %{customdata[0]}<extra></extra>",
+                      "<br>Likely range %{customdata[1]:.1f} to %{customdata[2]:.1f}%"
+                      "<br><i>Click to see these applications</i><extra></extra>",
     )
     top = float(frame["applications"].max() or 1)
     fig.update_xaxes(title_text="Applications sent", range=[-top * 0.03, top * 1.22],
@@ -318,11 +354,11 @@ def survival(frame: pd.DataFrame, median_reply: float | None = None,
                     hovertemplate="Day %{x}: %{y:.1f}% still waiting<extra></extra>")
     cens = frame[frame["censored"] > 0]
     fig.add_scatter(x=cens["day"], y=cens["still_waiting_pct"], mode="markers",
-                    marker=dict(symbol="line-ns-open", size=8, color=theme.GREY_DARK,
-                                line=dict(width=1.2, color=theme.GREY_DARK)),
+                    marker=dict(symbol="line-ns-open", size=6, color=theme.GREY,
+                                line=dict(width=1, color=theme.GREY)),
                     customdata=cens["censored"],
-                    hovertemplate="Day %{x}: %{customdata} still open at this age "
-                                  "(censored)<extra></extra>")
+                    hovertemplate="Day %{x}: %{customdata} still waiting at this age"
+                                  "<extra></extra>")
     for horizon in (7, 14, 21, 30):
         upto = frame[frame["day"] <= horizon]
         if not upto.empty:
@@ -333,15 +369,15 @@ def survival(frame: pd.DataFrame, median_reply: float | None = None,
         marks["median_day"] = median_day
         fig.add_shape(type="line", x0=median_day, x1=median_day, y0=0, y1=50,
                       line=dict(color=theme.INK, width=1))
-        fig.add_annotation(x=median_day, y=50, text=f"<b>Median wait: day {median_day}</b>",
+        fig.add_annotation(x=median_day, y=50, text=f"<b>Half have heard by day {median_day}</b>",
                            showarrow=False, xanchor="left", xshift=6, yanchor="bottom",
                            font=dict(color=theme.INK, size=12))
     else:
         fig.add_hline(y=50, line=dict(color=theme.INK_3, width=1, dash="dot"))
         fig.add_annotation(x=1, xref="paper", y=50, yanchor="bottom", xanchor="right",
-                           showarrow=False, text="50% line — never crossed: the median wait "
-                                                 "is undefined because most never hear back",
-                           font=dict(color=theme.INK_2, size=11))
+                           showarrow=False, text="Most never hear back, so the line<br>"
+                                                 "never drops below half",
+                           align="right", font=dict(color=theme.INK_2, size=11))
     if 21 in marks:
         y21 = 100 - marks[21]
         fig.add_scatter(x=[21], y=[y21], mode="markers", hoverinfo="skip",
@@ -354,11 +390,10 @@ def survival(frame: pd.DataFrame, median_reply: float | None = None,
     if median_reply is not None:
         fig.add_shape(type="line", x0=median_reply, x1=median_reply, y0=0, y1=100,
                       line=dict(color=theme.GREY_DARK, width=1, dash="dot"))
-        fig.add_annotation(x=median_reply, y=10, text=f"Replies that came took<br>a median "
-                           f"{median_reply:g} days", showarrow=False, xanchor="left", xshift=6,
+        fig.add_annotation(x=median_reply, y=10, text=f"Typical reply:<br>{median_reply:g} days",
+                           showarrow=False, xanchor="left", xshift=6,
                            font=dict(color=theme.INK_2, size=11), align="left")
-    fig.update_yaxes(title_text="Still waiting for a first reply", range=[0, 103],
-                     ticksuffix="%")
+    fig.update_yaxes(title_text="Still waiting", range=[0, 103], ticksuffix="%")
     fig.update_xaxes(title_text="Days since applying", rangemode="tozero", showgrid=False)
     return fig, marks
 
@@ -410,7 +445,7 @@ def stage_timing(frame: pd.DataFrame, height: int = 240) -> go.Figure:
                     textposition="top center", textfont=LABEL_INK,
                     customdata=data[["p25_days", "p75_days", "applications"]].to_numpy(),
                     hovertemplate="<b>%{y}</b><br>median %{x:.1f} days<br>middle half "
-                                  "%{customdata[0]:.1f}–%{customdata[1]:.1f} days<br>"
+                                  "%{customdata[0]:.1f} to %{customdata[1]:.1f} days<br>"
                                   "n=%{customdata[2]}<extra></extra>")
     fig.update_xaxes(title_text="Days since applying · grey bar = middle half of cases",
                      rangemode="tozero", showgrid=True)
@@ -469,6 +504,7 @@ def cohort_outcomes(frame: pd.DataFrame, height: int = 340) -> go.Figure:
     months = month_labels(frame)
     for col, name in COHORT_PARTS:
         fig.add_bar(x=months, y=frame[col], name=name,
+                    customdata=frame[["cohort_month"]].to_numpy(),
                     marker=dict(color=theme.FLOW_COLORS[name],
                                 line=dict(color=theme.PAPER, width=1.5)),
                     hovertemplate=f"{name}: %{{y}}<extra></extra>")
@@ -487,6 +523,7 @@ def cohort_rates(frame: pd.DataFrame, height: int = 300) -> go.Figure:
     for col, name, color in (("response_rate_pct", "Response rate", theme.ACCENT),
                              ("interview_rate_pct", "Interview rate", theme.INK_2)):
         fig.add_scatter(x=months, y=frame[col], name=name, mode="lines+markers",
+                        customdata=frame[["cohort_month"]].to_numpy(),
                         line=dict(color=color, width=2),
                         marker=dict(size=8, color=[theme.PAPER if m else color
                                                    for m in frame["is_maturing"]],

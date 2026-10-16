@@ -3,7 +3,7 @@
 Every measure reproduces the SQL definition in ``jobtracker/warehouse/metrics.py`` on the
 same data. Thresholds (response bands, the 6.87% direct benchmark, the per-100 funnel, the
 sample-size cut-offs, Wilson's z) are generated from ``jobtracker.benchmarks`` /
-``metrics.Z`` — never typed twice.
+``metrics.Z``, so nothing is typed twice.
 
 ``render_dax_file`` emits a DAX *query* (``DEFINE MEASURE ... EVALUATE``): paste it into
 Power BI Desktop's DAX query view, run it to preview the numbers, then use "Update model

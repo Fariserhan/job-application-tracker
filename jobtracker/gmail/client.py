@@ -84,13 +84,13 @@ class GmailClient:
         self.pacer = AdaptivePacer(interval=max(base, 0.35), floor=max(base * 0.75, 0.25))
 
     @classmethod
-    def from_settings(cls, settings) -> GmailClient:
+    def from_settings(cls, settings, interactive: bool = True) -> GmailClient:
         from googleapiclient.discovery import build
 
         from .auth import get_credentials
 
         creds = get_credentials(settings.secret_path("credentials.json"),
-                                settings.secret_path("token.json"))
+                                settings.secret_path("token.json"), interactive=interactive)
         return cls(build("gmail", "v1", credentials=creds, cache_discovery=False), creds)
 
     # ------------------------------------------------------------------ core
@@ -308,7 +308,7 @@ def extract_body(payload: dict) -> str:
     """All text parts plus every HTML link.
 
     Gmail's multipart/alternative often ships a thin text/plain stub next to the real HTML,
-    and job platforms hide the posting link behind an HTML button — appending the hrefs means
+    and job platforms hide the posting link behind an HTML button. Appending the hrefs means
     the parser always sees the link (noise links are scored out later).
     """
     plain: list[str] = []

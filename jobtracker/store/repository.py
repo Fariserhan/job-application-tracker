@@ -2,14 +2,14 @@
 
 Merge rules (one thread = one application, fed by many emails):
 
-* **validity is an OR across the thread** — one confirming email proves the application;
+* **validity is an OR across the thread**: one confirming email proves the application;
   a later marketing-looking email can never erase it. Manual verdicts are sticky.
-* **status only moves on newer evidence** — an email older than the thread's latest status
+* **status only moves on newer evidence**: an email older than the thread's latest status
   event never rolls it back, and a generic "your application…" email never demotes an
   interview to "Applied". Every change is written to ``status_events`` dated by the email.
-* **identity only improves** — a platform placeholder ("JobStreet", "Workday") never
+* **identity only improves**: a platform placeholder ("JobStreet", "Workday") never
   replaces a real employer; a junk fragment never replaces a real role title.
-* **dates mean something** — ``application_date`` is the earliest message; ``last_updated``
+* **dates mean something**: ``application_date`` is the earliest message; ``last_updated``
   advances only when a message actually changes the record, so "days waiting" is real.
 """
 from __future__ import annotations
@@ -280,7 +280,7 @@ class Repository:
                     continue
                 title = (payload.get("title") or "").strip()
                 desc = (payload.get("description") or "").strip()
-                text = f"{title} — {desc}" if title and desc else (title or desc)
+                text = f"{title} - {desc}" if title and desc else (title or desc)
                 conn.execute(
                     """UPDATE applications SET
                            job_description_snippet = CASE WHEN ? <> '' AND
@@ -343,6 +343,33 @@ class Repository:
                             note=note)
         return True
 
+    def last_status_change(self, thread_id: str) -> dict | None:
+        """The most recent status event that can be undone (it has a previous status)."""
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM status_events WHERE thread_id=? "
+                "ORDER BY occurred_on DESC, event_id DESC LIMIT 1", (thread_id,)).fetchone()
+        if row is None or not row["from_status"]:
+            return None
+        return dict(row)
+
+    def undo_last_status(self, thread_id: str) -> str | None:
+        """Undo the latest status change: restore the previous status and remove that event,
+        so a mis-click never counts in the funnel. Returns the restored status, or None when
+        there is nothing to undo (only the opening event is left)."""
+        last = self.last_status_change(thread_id)
+        if last is None:
+            return None
+        with self.connect() as conn:
+            conn.execute("DELETE FROM status_events WHERE event_id=?", (last["event_id"],))
+            app = conn.execute("SELECT application_date FROM applications WHERE thread_id=?",
+                               (thread_id,)).fetchone()
+            latest = self._latest_event_day(conn, thread_id) or (app["application_date"] if app
+                                                                 else "") or _today()
+            conn.execute("UPDATE applications SET current_status=?, last_updated=?, updated_at=? "
+                         "WHERE thread_id=?", (last["from_status"], latest, now(), thread_id))
+        return str(last["from_status"])
+
     def update_fields(self, thread_id: str, **fields) -> bool:
         allowed = {"company_name", "role_title", "source_platform", "job_url", "notes",
                    "location", "salary_text", "job_type", "industry", "seniority_level"}
@@ -359,7 +386,7 @@ class Repository:
             return cur.rowcount > 0
 
     def set_valid(self, thread_id: str, is_valid: bool, reason: str = "") -> bool:
-        """Manual noise verdict — sticky in both directions until changed again."""
+        """Manual noise verdict. Sticky in both directions until changed again."""
         reason = (reason or "").strip() or ("manual recovery" if is_valid else "manual: marked as noise")
         if not reason.startswith("manual"):
             reason = f"manual: {reason}"
@@ -375,6 +402,28 @@ class Repository:
                 self._log_event(conn, thread_id, None, domain.APPLIED, row["application_date"],
                                 "manual", note="recovered from the noise filter")
         return True
+
+    def review_queue(self, threshold: float = 0.75, limit: int = 50) -> list[dict]:
+        """Applications the rules were unsure about and nobody has checked yet."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT thread_id, company_name, role_title, latest_subject, source_platform, "
+                "application_date, current_status, parse_confidence, gmail_link "
+                "FROM applications WHERE is_valid = 1 AND COALESCE(origin, '') <> 'manual' "
+                "AND parse_confidence IS NOT NULL AND parse_confidence < ? "
+                "AND COALESCE(filter_reason, '') NOT LIKE 'manual%' "
+                "ORDER BY parse_confidence, application_date DESC LIMIT ?",
+                (threshold, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    def noise(self, limit: int = 300) -> list[dict]:
+        """Threads the filter judged not to be application mail, newest first."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT thread_id, application_date, latest_subject, company_name, "
+                "source_platform, filter_reason, gmail_link FROM applications "
+                "WHERE is_valid = 0 ORDER BY application_date DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
 
     def add_manual_application(self, company: str, role: str, platform: str = "Direct ATS",
                                applied_on: str | None = None, job_url: str = "",
@@ -438,6 +487,17 @@ class Repository:
             row = conn.execute("SELECT * FROM applications WHERE thread_id=?",
                                (thread_id,)).fetchone()
         return dict(row) if row else None
+
+    def changes_since(self, since: str, limit: int = 500) -> list[dict]:
+        """Status events recorded at or after ``since`` (``YYYY-MM-DD HH:MM:SS``, local), newest
+        first, with the application's company and role: what the last sync (and anything done
+        by hand after it) changed. An event without a previous status is a new application."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT e.*, a.company_name, a.role_title FROM status_events e "
+                "JOIN applications a USING (thread_id) WHERE a.is_valid = 1 AND e.recorded_at >= ? "
+                "ORDER BY e.recorded_at DESC, e.event_id DESC LIMIT ?", (since, limit)).fetchall()
+        return [dict(r) for r in rows]
 
     def events(self, thread_id: str | None = None, limit: int = 500) -> list[dict]:
         with self.connect() as conn:

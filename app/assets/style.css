@@ -471,3 +471,108 @@
   .jt-board { grid-template-columns: repeat(4, minmax(220px, 1fr)); }
   .jt-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ==========================================================================
+   Usability layer (v3.1): explanations, help, drill-down controls, cards, dialogs.
+   ========================================================================== */
+.jt-explain {
+  margin: 0.15rem 0 0.9rem; padding: 0.7rem 0.9rem; background: var(--jt-sunk);
+  border-left: 2px solid var(--jt-accent); font-size: 0.88rem; line-height: 1.55; color: var(--jt-ink-2);
+}
+.jt-explain p { margin: 0; }
+.jt-explain p + p { margin-top: 0.3rem; }
+.jt-explain b { color: var(--jt-ink); font-weight: 600; }
+.jt-term { text-decoration: underline dotted var(--jt-ink-3); text-underline-offset: 3px; cursor: help; }
+.jt-i {
+  display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em;
+  border-radius: 50%; border: 1px solid var(--jt-ink-3); color: var(--jt-ink-3); margin-left: 0.3rem;
+  font-family: var(--jt-sans); font-size: 0.6rem; font-weight: 700; line-height: 1;
+  letter-spacing: 0; text-transform: none; cursor: help; vertical-align: 1px;
+}
+.jt-i:hover { color: var(--jt-accent); border-color: var(--jt-accent); }
+.jt-stat-label { white-space: normal; }
+
+/* KPI tiles in columns, each with its own "See them" link underneath. */
+.st-key-jt-kpis { margin: 2.2rem 0 0.5rem; border-top: 1px solid var(--jt-rule); border-bottom: 1px solid var(--jt-rule); }
+.st-key-jt-kpis .jt-stat { border-left: 0; padding: 1.05rem 0.2rem 0.2rem 0.9rem; }
+.st-key-jt-kpis [data-testid="stColumn"] + [data-testid="stColumn"] { border-left: 1px solid var(--jt-rule); }
+.st-key-jt-kpis [data-testid="stColumn"]:first-child .jt-stat { padding-left: 0; }
+.st-key-jt-kpis .stButton { padding: 0 0 0.5rem 0.75rem; margin-top: auto; }
+.st-key-jt-kpis [data-testid="stColumn"] > [data-testid="stVerticalBlock"] { height: 100%; }
+.st-key-jt-kpis [data-testid="stColumn"]:first-child .stButton { padding-left: 0; }
+.st-key-jt-kpis .stButton button p { font-size: 0.8rem; color: var(--jt-accent); font-weight: 600; }
+
+/* Pills: outcome boxes under the flow chart, months, status counts, filter chips. */
+.st-key-jt-outcomes button, .st-key-jt-months button, .st-key-jt-countbar button, .st-key-jt-chips button {
+  border-radius: 999px; min-height: 0; padding: 0.28rem 0.85rem; border-color: var(--jt-rule);
+  background: var(--jt-surface); transition: border-color var(--jt-fast) var(--jt-ease), transform var(--jt-fast) var(--jt-ease);
+}
+.st-key-jt-outcomes button p, .st-key-jt-months button p, .st-key-jt-countbar button p, .st-key-jt-chips button p { font-size: 0.82rem; }
+.st-key-jt-outcomes button:hover, .st-key-jt-months button:hover, .st-key-jt-countbar button:hover, .st-key-jt-chips button:hover {
+  border-color: var(--jt-accent); color: var(--jt-accent); transform: translateY(-1px);
+}
+.st-key-jt-outcomes { margin: 0.2rem 0 0.8rem; }
+.st-key-jt-months { margin: 0.6rem 0 0.4rem; }
+.st-key-jt-countbar { margin: 1.2rem 0 1.2rem; }
+.st-key-jt-chips { margin: 0.4rem 0 1rem; }
+.st-key-jt-chips button { background: var(--jt-accent-soft); border-color: transparent; }
+
+/* Cards: Pipeline board cards and follow-up rows are real buttons, one click to open. */
+[class*="st-key-card-"] button {
+  justify-content: flex-start; text-align: left; background: var(--jt-surface); border: 1px solid var(--jt-rule);
+  border-radius: 6px; padding: 0.6rem 0.8rem; min-height: 0; margin-bottom: 0.1rem;
+  transition: border-color var(--jt-fast) var(--jt-ease), box-shadow var(--jt-fast) var(--jt-ease), transform var(--jt-fast) var(--jt-ease);
+}
+[class*="st-key-card-"] button > div, [class*="st-key-card-"] button [data-testid="stMarkdownContainer"] { width: 100%; justify-content: flex-start; text-align: left; }
+[class*="st-key-card-"] button p {
+  text-align: left; font-size: 0.8rem; line-height: 1.45; color: var(--jt-ink-2); margin: 0;
+}
+[class*="st-key-card-"] button strong { font-size: 0.9rem; color: var(--jt-ink); }
+[class*="st-key-card-"] button:hover {
+  border-color: var(--jt-accent); box-shadow: 0 3px 12px rgba(25, 25, 25, 0.07); transform: translateY(-1px);
+}
+.jt-col-head {
+  display: flex; justify-content: space-between; align-items: baseline; padding: 0.5rem 0 0.6rem;
+  margin-bottom: 0.5rem; border-top: 3px solid var(--lane, var(--jt-grey)); border-bottom: 1px solid var(--jt-rule);
+}
+
+/* What changed since the last sync. */
+.st-key-jt-changes {
+  background: var(--jt-surface); border: 1px solid var(--jt-rule); border-radius: 8px;
+  padding: 0.85rem 1.1rem 0.6rem; margin: 0.4rem 0 1.4rem; gap: 0;
+}
+.jt-changes-head { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; font-size: 0.92rem; color: var(--jt-ink); margin-bottom: 0.3rem; }
+.jt-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--jt-accent); flex: none; }
+.st-key-jt-changes button { min-height: 0; padding: 0.2rem 0; justify-content: flex-start; }
+.st-key-jt-changes button p { font-size: 0.86rem; text-align: left; }
+.jt-changes-more { font-size: 0.8rem; color: var(--jt-ink-3); margin: 0.2rem 0 0.2rem; }
+
+/* Dialogs and the application sheet. */
+.jt-dlg-title { font-family: var(--jt-serif); font-size: 1.6rem; line-height: 1.2; color: var(--jt-ink); margin: 0; }
+.jt-dlg-sub { color: var(--jt-ink-2); font-size: 0.9rem; margin: 0.3rem 0 0.9rem; }
+.jt-sheet-head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: flex-start; margin-bottom: 0.6rem; }
+[data-testid="stDialog"] [role="dialog"] { background: var(--jt-paper); }
+
+/* Clickable charts say so. */
+[class*="st-key-pick-"] .js-plotly-plot .nsewdrag,
+[class*="st-key-pick-"] .js-plotly-plot .scatterlayer .points path,
+[class*="st-key-pick-"] .js-plotly-plot .barlayer .point path { cursor: pointer !important; }
+
+/* Motion plays on a page's first view only: after any click the page stays still. */
+.stApp:has(.jt-calm) [class*="jt-"],
+.stApp:has(.jt-calm) [class*="st-key-jt-sec"],
+.stApp:has(.jt-calm) .js-plotly-plot * { animation: none !important; }
+[class*="st-key-pick-h-"] .js-plotly-plot .barlayer .point path { transform-origin: left; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .jt-pulse { animation: jt-pulse 2.2s var(--jt-ease) infinite; }
+  .st-key-jt-changes { animation: jt-rise 520ms var(--jt-ease) both; }
+}
+@keyframes jt-pulse { 0% { box-shadow: 0 0 0 0 rgba(29, 63, 187, 0.45); } 70% { box-shadow: 0 0 0 7px rgba(29, 63, 187, 0); } 100% { box-shadow: 0 0 0 0 rgba(29, 63, 187, 0); } }
+
+@media (max-width: 720px) {
+  /* The outcome pills under the chart carry the counts on phones. */
+  .st-key-sankey .js-plotly-plot .sankey .node-label { display: none; }
+  .st-key-jt-kpis [data-testid="stColumn"] + [data-testid="stColumn"] { border-left: 0; border-top: 1px solid var(--jt-rule); }
+  .st-key-jt-kpis .jt-stat, .st-key-jt-kpis .stButton { padding-left: 0; }
+}

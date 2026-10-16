@@ -7,7 +7,11 @@ from pathlib import Path
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 
-def get_credentials(credentials_path: Path, token_path: Path):
+class SignInRequired(RuntimeError):
+    """The saved Google sign-in is missing or expired and no browser may be opened."""
+
+
+def get_credentials(credentials_path: Path, token_path: Path, interactive: bool = True):
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
@@ -17,20 +21,23 @@ def get_credentials(credentials_path: Path, token_path: Path):
         try:
             creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
         except (ValueError, OSError):
-            creds = None  # corrupt / partial token file — fall through to a fresh flow
+            creds = None  # corrupt / partial token file: fall through to a fresh flow
     if creds and creds.valid:
         return creds
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
         except Exception:
-            creds = None  # refresh token revoked or expired — re-authenticate
+            creds = None  # refresh token revoked or expired: re-authenticate
     if not creds or not creds.valid:
         if not credentials_path.exists():
             raise FileNotFoundError(
                 f"{credentials_path} not found. Create an OAuth client (Desktop app) in Google "
                 "Cloud Console -> APIs & Services -> Credentials, download the JSON and save it "
                 "there. See docs/setup.md.")
+        if not interactive:
+            raise SignInRequired("Gmail needs you to sign in again. Open the app and click "
+                                 "Sync Gmail once.")
         flow = InstalledAppFlow.from_client_secrets_file(str(credentials_path), SCOPES)
         creds = flow.run_local_server(port=0)
     token_path.parent.mkdir(parents=True, exist_ok=True)

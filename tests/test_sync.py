@@ -91,3 +91,21 @@ def test_offline_reparse_from_cache(settings):
     SyncEngine(settings, DemoMailbox(today=TODAY, applications=10, days=20),
                build_warehouse=False).run()
     assert reparse_from_cache(settings) >= 0
+
+
+def test_changes_since_lists_what_the_last_sync_found(tmp_path):
+    from jobtracker.config import Settings
+    from jobtracker.demo.mailbox import DemoMailbox
+    from jobtracker.store import Repository
+    from jobtracker.sync import SyncEngine
+
+    settings = Settings(data_dir=tmp_path).ensure_dirs()
+    repo = Repository(settings)
+    SyncEngine(settings, DemoMailbox(applications=10), repo=repo, enricher=None,
+               build_warehouse=False).run()
+    started = repo.load_state()["last_sync_started"]
+    changes = repo.changes_since(started)
+    assert changes, "a first sync should report its new applications"
+    assert {c["from_status"] for c in changes} >= {None}  # opening events = new applications
+    assert all(c["company_name"] for c in changes)
+    assert repo.changes_since("9999-01-01 00:00:00") == []

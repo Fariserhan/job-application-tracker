@@ -4,14 +4,14 @@
 
 ## Methodology
 
-* **Corpus** — `tests/fixtures/email_corpus.jsonl`: 261 hand-written, labelled emails modelled on real Malaysian / SEA job-search mail (LinkedIn, JobStreet, Workday, SuccessFactors, Oracle Cloud HCM, Greenhouse, Lever, iCIMS, Taleo, SmartRecruiters, Ashby, Hiredly, Prosple, Indeed, MYFutureJobs, recruiters writing from personal addresses, assessment vendors, calendar invites, Malay-English mail). Every employer is fictional.
+* **Corpus**: `tests/fixtures/email_corpus.jsonl`: 261 hand-written, labelled emails modelled on real Malaysian / SEA job-search mail (LinkedIn, JobStreet, Workday, SuccessFactors, Oracle Cloud HCM, Greenhouse, Lever, iCIMS, Taleo, SmartRecruiters, Ashby, Hiredly, Prosple, Indeed, MYFutureJobs, recruiters writing from personal addresses, assessment vendors, calendar invites, Malay-English mail). Every employer is fictional.
 * **Labels** were written from human judgement of what each email *is*, before the parser was run, and were not changed to fit its output. Hard rows the rules still get wrong are kept and listed below.
-* **Three batches** — `dev` (written first; the rule fixes were made against it), `holdout-1` (written after the first round of fixes, scored blind once, then used for a second round) and `holdout-2` (written after the last fix, scored blind, never tuned on). Only holdout-2 is an unbiased estimate, and it is small: with 22 events, a 95% interval on its status / company / role figures is roughly ±15–20 points.
-* **Run** — each row goes through the production entry point `parse_message(meta, body)`; the optional Claude fallback is not called, so these numbers describe the offline deterministic rules alone.
-* **Event detection** — positive class = *is an application event* (confirmation, assessment, interview, offer, rejection, or an employer update on an application).
-* **Status** — scored on the true events, *end to end*: a missed event counts as a wrong status. `Applied` covers confirmations and neutral updates. The conditional figure (only events the parser detected) is shown for reference.
-* **Company / role** — on the true events; case, whitespace and punctuation are ignored. An empty label means the email names none, so `Unknown` / empty is correct. The *lenient* column (legal suffixes like `Sdn Bhd` / `Berhad` dropped for companies; containment for roles) is context only — the headline is exact match.
-* **CI gate** — event F1 ≥ 0.95 and status accuracy ≥ 0.90 (`tests/test_parser_eval.py`).
+* **Three batches**: `dev` (written first; the rule fixes were made against it), `holdout-1` (written after the first round of fixes, scored blind once, then used for a second round) and `holdout-2` (written after the last fix, scored blind, never tuned on). Only holdout-2 is an unbiased estimate, and it is small: with 22 events, a 95% interval on its status / company / role figures is roughly ±15–20 points.
+* **Run**: each row goes through the production entry point `parse_message(meta, body)`; the optional Claude fallback is not called, so these numbers describe the offline deterministic rules alone.
+* **Event detection**: positive class = *is an application event* (confirmation, assessment, interview, offer, rejection, or an employer update on an application).
+* **Status**: scored on the true events, *end to end*: a missed event counts as a wrong status. `Applied` covers confirmations and neutral updates. The conditional figure (only events the parser detected) is shown for reference.
+* **Company / role**: on the true events; case, whitespace and punctuation are ignored. An empty label means the email names none, so `Unknown` / empty is correct. The *lenient* column (legal suffixes like `Sdn Bhd` / `Berhad` dropped for companies; containment for roles) is context only. The headline is exact match.
+* **CI gate**: event F1 ≥ 0.95 and status accuracy ≥ 0.90 (`tests/test_parser_eval.py`).
 
 ## Corpus composition
 
@@ -20,11 +20,11 @@
 | emails | 261 |
 | application events | 152 |
 | hard negatives | 109 (41.8%) |
-| — Applied | 58 |
-| — Assessment / OA | 20 |
-| — Interview | 27 |
-| — Offer | 11 |
-| — Rejected | 36 |
+| - Applied | 58 |
+| - Assessment / OA | 20 |
+| - Interview | 27 |
+| - Offer | 11 |
+| - Rejected | 36 |
 
 Sources: `platform:linkedin` 25, `platform:jobstreet` 20, `platform:workday` 20, `platform:indeed` 10, `platform:greenhouse` 9, `platform:hiredly` 9, `platform:prosple` 8, `platform:oracle` 6, `platform:successfactors` 5, `platform:lever` 4, `platform:glassdoor` 3, `platform:icims` 3, `platform:smartrecruiters` 3, `platform:taleo` 3, `platform:ashby` 2, `platform:myfuturejobs` 2, `platform:workable` 2, `vendor:hackerrank` 2, `vendor:other` 2, `platform:bamboohr` 1, `vendor:codility` 1, `vendor:docusign` 1, `vendor:hirevue` 1, `vendor:pymetrics` 1, `vendor:shl` 1, `vendor:testgorilla` 1
 
@@ -55,18 +55,18 @@ Confidence flags: 40 of 261 emails (15.3%) are flagged `ambiguous` (the rows the
 
 | rows | n | event F1 | status | company | role |
 |---|---:|---:|---:|---:|---:|
-| all — v1 parser | 261 | 84.0% | 63.8% | 38.8% | 39.5% |
-| all — **current** | 261 | 99.7% | 97.4% | 93.4% | 96.1% |
-| dev — v1 parser | 177 | 84.1% | 65.0% | 41.7% | 43.7% |
-| dev — current | 177 | 100.0% | 100.0% | 97.1% | 99.0% |
-| holdout-1 — v1 parser | 46 | 82.4% | 63.0% | 25.9% | 25.9% |
-| holdout-1 — blind first look | 46 | 88.9% | 77.8% | 81.5% | 77.8% |
-| holdout-1 — current | 46 | 100.0% | 100.0% | 92.6% | 96.3% |
-| holdout-2 — v1 parser | 38 | 85.7% | 59.1% | 40.9% | 36.4% |
-| holdout-2 — blind first look | 38 | 97.7% | 81.8% | 77.3% | 81.8% |
-| holdout-2 — current | 38 | 97.7% | 81.8% | 77.3% | 81.8% |
+| all (v1 parser) | 261 | 84.0% | 63.8% | 38.8% | 39.5% |
+| all (**current**) | 261 | 99.7% | 97.4% | 93.4% | 96.1% |
+| dev (v1 parser) | 177 | 84.1% | 65.0% | 41.7% | 43.7% |
+| dev (current) | 177 | 100.0% | 100.0% | 97.1% | 99.0% |
+| holdout-1 (v1 parser) | 46 | 82.4% | 63.0% | 25.9% | 25.9% |
+| holdout-1 (blind first look) | 46 | 88.9% | 77.8% | 81.5% | 77.8% |
+| holdout-1 (current) | 46 | 100.0% | 100.0% | 92.6% | 96.3% |
+| holdout-2 (v1 parser) | 38 | 85.7% | 59.1% | 40.9% | 36.4% |
+| holdout-2 (blind first look) | 38 | 97.7% | 81.8% | 77.3% | 81.8% |
+| holdout-2 (current) | 38 | 97.7% | 81.8% | 77.3% | 81.8% |
 
-The honest generalisation estimate is the **holdout-2 blind** row: it was written after the last rule change and never tuned on. The dev and holdout-1 rows are training scores — the rules were fixed while looking at them.
+The generalisation estimate to quote is the **holdout-2 blind** row: it was written after the last rule change and never tuned on. The dev and holdout-1 rows are training scores, because the rules were fixed while looking at them.
 
 ## Status confusion matrix
 
@@ -92,51 +92,51 @@ Rows = labelled status, columns = parser output (`(missed)` = event not detected
 
 | tag | n | events | detection | status | company | role |
 |---|---:|---:|---:|---:|---:|---:|
-| `account` | 15 | 0 | 100.0% | — | — | — |
+| `account` | 15 | 0 | 100.0% | - | - | - |
 | `agency` | 6 | 1 | 100.0% | 100.0% | 0.0% | 100.0% |
-| `application-word-trap` | 2 | 0 | 100.0% | — | — | — |
+| `application-word-trap` | 2 | 0 | 100.0% | - | - | - |
 | `applied` | 57 | 57 | 100.0% | 100.0% | 94.7% | 96.5% |
 | `assessment` | 20 | 20 | 95.0% | 95.0% | 90.0% | 90.0% |
 | `assessment-word-trap` | 1 | 1 | 100.0% | 100.0% | 100.0% | 100.0% |
 | `calendar-invite` | 3 | 1 | 100.0% | 100.0% | 100.0% | 100.0% |
 | `calendly` | 2 | 2 | 100.0% | 100.0% | 100.0% | 100.0% |
-| `career-advice` | 3 | 0 | 100.0% | — | — | — |
-| `career-event` | 9 | 0 | 100.0% | — | — | — |
+| `career-advice` | 3 | 0 | 100.0% | - | - | - |
+| `career-event` | 9 | 0 | 100.0% | - | - | - |
 | `company-from-domain-only` | 4 | 4 | 75.0% | 75.0% | 0.0% | 100.0% |
 | `conditional-interview` | 1 | 1 | 100.0% | 100.0% | 100.0% | 100.0% |
 | `conditional-unsuccessful` | 1 | 1 | 100.0% | 100.0% | 100.0% | 100.0% |
 | `congratulations-trap` | 9 | 5 | 100.0% | 100.0% | 100.0% | 100.0% |
-| `developer` | 1 | 0 | 100.0% | — | — | — |
-| `digest` | 3 | 0 | 100.0% | — | — | — |
+| `developer` | 1 | 0 | 100.0% | - | - | - |
+| `digest` | 3 | 0 | 100.0% | - | - | - |
 | `direct` | 60 | 53 | 98.3% | 94.3% | 92.5% | 98.1% |
 | `employer-undisclosed` | 1 | 1 | 100.0% | 100.0% | 0.0% | 100.0% |
-| `finance` | 7 | 0 | 100.0% | — | — | — |
+| `finance` | 7 | 0 | 100.0% | - | - | - |
 | `generic-subject` | 19 | 15 | 100.0% | 100.0% | 100.0% | 100.0% |
-| `hard-negative` | 109 | 0 | 100.0% | — | — | — |
+| `hard-negative` | 109 | 0 | 100.0% | - | - | - |
 | `high-volume-disclaimer` | 2 | 2 | 100.0% | 100.0% | 100.0% | 100.0% |
 | `implicit-interview` | 1 | 1 | 100.0% | 100.0% | 100.0% | 100.0% |
-| `incomplete-application` | 2 | 0 | 100.0% | — | — | — |
-| `insurance-brand` | 2 | 0 | 100.0% | — | — | — |
+| `incomplete-application` | 2 | 0 | 100.0% | - | - | - |
+| `insurance-brand` | 2 | 0 | 100.0% | - | - | - |
 | `interview` | 27 | 27 | 100.0% | 100.0% | 96.3% | 96.3% |
 | `interview-word-trap` | 13 | 3 | 100.0% | 100.0% | 100.0% | 100.0% |
-| `invitation-to-apply` | 2 | 0 | 100.0% | — | — | — |
-| `job-alert` | 15 | 0 | 100.0% | — | — | — |
+| `invitation-to-apply` | 2 | 0 | 100.0% | - | - | - |
+| `job-alert` | 15 | 0 | 100.0% | - | - | - |
 | `malay-english` | 11 | 10 | 100.0% | 90.0% | 100.0% | 100.0% |
-| `marketing` | 3 | 0 | 100.0% | — | — | — |
+| `marketing` | 3 | 0 | 100.0% | - | - | - |
 | `marketing-tail` | 4 | 4 | 100.0% | 100.0% | 100.0% | 100.0% |
-| `networking` | 2 | 0 | 100.0% | — | — | — |
+| `networking` | 2 | 0 | 100.0% | - | - | - |
 | `neutral-update` | 1 | 1 | 100.0% | 100.0% | 100.0% | 100.0% |
-| `newsletter` | 6 | 0 | 100.0% | — | — | — |
-| `non-job-application` | 20 | 0 | 100.0% | — | — | — |
+| `newsletter` | 6 | 0 | 100.0% | - | - | - |
+| `non-job-application` | 20 | 0 | 100.0% | - | - | - |
 | `offer` | 11 | 11 | 100.0% | 90.9% | 90.9% | 100.0% |
 | `offer-word-trap` | 12 | 2 | 100.0% | 100.0% | 50.0% | 100.0% |
 | `one-way-video` | 2 | 2 | 100.0% | 100.0% | 100.0% | 50.0% |
-| `otp` | 3 | 0 | 100.0% | — | — | — |
-| `personal` | 4 | 0 | 100.0% | — | — | — |
-| `platform-survey` | 1 | 0 | 100.0% | — | — | — |
+| `otp` | 3 | 0 | 100.0% | - | - | - |
+| `personal` | 4 | 0 | 100.0% | - | - | - |
+| `platform-survey` | 1 | 0 | 100.0% | - | - | - |
 | `platform:ashby` | 2 | 2 | 100.0% | 100.0% | 100.0% | 100.0% |
 | `platform:bamboohr` | 1 | 1 | 100.0% | 100.0% | 100.0% | 100.0% |
-| `platform:glassdoor` | 3 | 0 | 100.0% | — | — | — |
+| `platform:glassdoor` | 3 | 0 | 100.0% | - | - | - |
 | `platform:greenhouse` | 9 | 8 | 100.0% | 100.0% | 87.5% | 87.5% |
 | `platform:hiredly` | 9 | 4 | 100.0% | 100.0% | 100.0% | 100.0% |
 | `platform:icims` | 3 | 3 | 100.0% | 100.0% | 100.0% | 100.0% |
@@ -152,23 +152,23 @@ Rows = labelled status, columns = parser output (`(missed)` = event not detected
 | `platform:taleo` | 3 | 3 | 100.0% | 100.0% | 100.0% | 100.0% |
 | `platform:workable` | 2 | 2 | 100.0% | 100.0% | 100.0% | 100.0% |
 | `platform:workday` | 20 | 16 | 100.0% | 100.0% | 93.8% | 87.5% |
-| `profile-view` | 4 | 0 | 100.0% | — | — | — |
+| `profile-view` | 4 | 0 | 100.0% | - | - | - |
 | `quoted-thread` | 9 | 9 | 100.0% | 100.0% | 66.7% | 100.0% |
-| `recruiter-marketing` | 4 | 0 | 100.0% | — | — | — |
-| `recruiter-outreach` | 3 | 0 | 100.0% | — | — | — |
+| `recruiter-marketing` | 4 | 0 | 100.0% | - | - | - |
+| `recruiter-outreach` | 3 | 0 | 100.0% | - | - | - |
 | `recruiter-personal` | 31 | 24 | 96.8% | 95.8% | 79.2% | 100.0% |
 | `rejection` | 36 | 36 | 100.0% | 94.4% | 91.7% | 97.2% |
 | `reminder` | 2 | 2 | 100.0% | 100.0% | 100.0% | 0.0% |
 | `requisition-cancelled` | 1 | 1 | 100.0% | 100.0% | 100.0% | 100.0% |
-| `role-at-company-trap` | 3 | 0 | 100.0% | — | — | — |
-| `shopping` | 8 | 0 | 100.0% | — | — | — |
-| `social` | 2 | 0 | 100.0% | — | — | — |
+| `role-at-company-trap` | 3 | 0 | 100.0% | - | - | - |
+| `shopping` | 8 | 0 | 100.0% | - | - | - |
+| `social` | 2 | 0 | 100.0% | - | - | - |
 | `take-home` | 1 | 1 | 100.0% | 100.0% | 100.0% | 100.0% |
-| `talent-community` | 1 | 0 | 100.0% | — | — | — |
+| `talent-community` | 1 | 0 | 100.0% | - | - | - |
 | `teams` | 1 | 1 | 100.0% | 100.0% | 100.0% | 100.0% |
 | `terse` | 2 | 2 | 100.0% | 100.0% | 100.0% | 100.0% |
-| `thank-you-trap` | 4 | 0 | 100.0% | — | — | — |
-| `university` | 6 | 0 | 100.0% | — | — | — |
+| `thank-you-trap` | 4 | 0 | 100.0% | - | - | - |
+| `university` | 6 | 0 | 100.0% | - | - | - |
 | `vendor:codility` | 1 | 1 | 100.0% | 100.0% | 100.0% | 100.0% |
 | `vendor:docusign` | 1 | 1 | 100.0% | 100.0% | 0.0% | 100.0% |
 | `vendor:hackerrank` | 2 | 2 | 100.0% | 100.0% | 100.0% | 50.0% |
@@ -185,7 +185,7 @@ Every row the rules still get wrong. These are kept in the corpus on purpose: re
 
 | id | kind | expected | got | flagged ambiguous | note |
 |---|---|---|---|---|---|
-| `dr-applied-07` | company | (none) | Kestrel Talent Partners | no | Agency recruiter; the client employer is undisclosed. The rules store the agency (verified by the sender domain) — a human would leave it blank. |
+| `dr-applied-07` | company | (none) | Kestrel Talent Partners | no | Agency recruiter; the client employer is undisclosed. The rules store the agency (verified by the sender domain). A human would leave it blank. |
 | `dr-interview-07` | company | Tasik Actuarial Consulting | Tasikactuarial | no | Reply in a thread; the employer is named only in earlier messages and in a concatenated domain ('tasikactuarial'). Needs thread context. |
 | `as-reminder-01` | role | Junior Data Engineer | (none) | yes | Vendor reminder names the test ('Junior Data Engineer - SQL & Python'), not the job; no title to extract without thread context. |
 | `rj-03` | company | Tasik Actuarial Consulting | Tasikactuarial | no | Same as dr-interview-07: employer only in the domain and earlier messages. |
@@ -196,20 +196,20 @@ Every row the rules still get wrong. These are kept in the corpus on purpose: re
 | `h2-applied-03` | role | Treaty Pricing Analyst | the | no | Blind batch: trailing 'and' kept on the company ('Rimau Reinsurance and for submitting…') and 'for the position of X' yielded role 'the'. Clear rule bugs, deliberately left unfixed so holdout-2 stays blind. |
 | `h2-rejected-01` | company | Teratak Digital | Follow | no | Blind batch: the hyphen in 'Follow-up' was read as a 'Company - Role' separator. Rule bug, left unfixed (blind batch). |
 | `h2-rejected-01` | role | Marketing Data Analyst | up on your Teratak Digital | no | Blind batch: the hyphen in 'Follow-up' was read as a 'Company - Role' separator. Rule bug, left unfixed (blind batch). |
-| `h2-assessment-01` | missed event | Assessment / OA | invalid: no positive affirmation | yes | Blind batch: 'attached is the case exercise … send your solution' — no assessment phrase the rules know. Flagged ambiguous (0.55), so the optional fallback would review it. |
+| `h2-assessment-01` | missed event | Assessment / OA | invalid: no positive affirmation | yes | Blind batch: 'attached is the case exercise … send your solution' matches no assessment phrase the rules know. Flagged ambiguous (0.55), so the optional fallback would review it. |
 | `h2-offer-01` | company | Angsana Capital | Unknown | yes | Blind batch: DocuSign envelope; employer only in 'Angsana Capital HR sent you a document'. No rule for e-signature senders. |
-| `h2-rejected-02` | status | Rejected | Applied | no | Blind batch: 'we have identified candidates whose experience more closely matches' — an unseen rejection phrasing. |
+| `h2-rejected-02` | status | Rejected | Applied | no | Blind batch: 'we have identified candidates whose experience more closely matches' is an unseen rejection phrasing. |
 | `h2-assessment-02` | company | Teratak Digital | Penilai | no | Blind batch: unknown assessment vendor ('Penilai Assessments'); its display name was taken as the employer. |
 | `h2-interview-04` | role | Claims Analytics Executive | Claims Analytics Executive position tomorrow | no | Blind batch: role ran on into 'position tomorrow'. |
-| `h2-rejected-03` | status | Rejected | Applied | no | Blind batch: 'you're no longer being considered' — unseen phrasing (only 'no longer under consideration' is known). |
-| `h2-offer-02` | status | Offer | Applied | no | Blind batch: 'happy to offer you the role' / Malay 'menawarkan' — only 'pleased/delighted to offer' are known. |
-| `h2-assessment-03` | role | Graduate Risk Analyst | (none) | yes | Blind batch: 'applying for the Graduate Risk Analyst programme' — 'programme' is not a recognised title terminator there. |
+| `h2-rejected-03` | status | Rejected | Applied | no | Blind batch: 'you're no longer being considered' is unseen phrasing (only 'no longer under consideration' is known). |
+| `h2-offer-02` | status | Offer | Applied | no | Blind batch: 'happy to offer you the role' / Malay 'menawarkan'. Only 'pleased/delighted to offer' are known. |
+| `h2-assessment-03` | role | Graduate Risk Analyst | (none) | yes | Blind batch: 'applying for the Graduate Risk Analyst programme'. 'programme' is not a recognised title terminator there. |
 
 ### Failure themes
 
 * **Unseen phrasing is the main risk.** The blind holdout-2 batch had near-perfect event detection, but three of its 22 events got the wrong *status* because the rejection or offer was worded in a way no rule had seen ('identified candidates whose…', 'no longer being considered', 'happy to offer you'). Deterministic rules generalise by vocabulary; every new template family needs a pattern.
 * **Field extraction is the weakest layer.** Company and role are right on roughly four in five blind events. Errors are run-on captures ('Rimau Reinsurance and'), separators inside words ('Follow-up'), unknown vendors whose name looks like an employer, and employers named only in an earlier message of the thread or a concatenated domain.
-* **Thread context.** A reply that only says "you're all set for Thursday" carries no employer; the store merges messages by Gmail thread, so in the app the earlier confirmation usually supplies it — the per-email numbers here understate the per-application result for those rows.
+* **Thread context.** A reply that only says "you're all set for Thursday" carries no employer; the store merges messages by Gmail thread, so in the app the earlier confirmation usually supplies it. The per-email numbers here understate the per-application result for those rows.
 * **Ambiguity flags help.** Rows the rules are unsure about are flagged (`ambiguous`, confidence < 0.75) for the optional, off-by-default LLM fallback; a recruiter writing 'Next steps' from a personal company address is flagged rather than silently dropped.
 
 ## Caveats
