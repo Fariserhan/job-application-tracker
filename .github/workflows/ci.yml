@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [master, "claude/**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint & types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip, cache-dependency-path: requirements-dev.txt}
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: mypy
+
+  test:
+    name: Tests (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, python: "3.11"}
+          - {os: ubuntu-latest, python: "3.12"}
+          - {os: ubuntu-latest, python: "3.13"}
+          - {os: windows-latest, python: "3.12"}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "${{ matrix.python }}", cache: pip, cache-dependency-path: requirements-dev.txt}
+      - run: pip install -r requirements-dev.txt
+      - name: pytest
+        run: python -m pytest --cov=jobtracker --cov-report=term-missing:skip-covered --cov-report=xml
+      - name: Coverage summary
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        uses: actions/upload-artifact@v4
+        with: {name: coverage, path: coverage.xml}
+
+  parser-eval:
+    name: Parser accuracy gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip, cache-dependency-path: requirements-dev.txt}
+      - run: pip install -r requirements-dev.txt
+      - name: Score the parser against the labelled corpus (fails below the gate)
+        run: python -m jobtracker eval
+
+  dbt:
+    name: dbt build & docs
+    runs-on: ubuntu-latest
+    env:
+      JOBTRACKER_WAREHOUSE: ${{ github.workspace }}/demo_data/warehouse.duckdb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip, cache-dependency-path: requirements-dev.txt}
+      - run: pip install -r requirements-dev.txt
+      - name: Build the demo warehouse through the real pipeline
+        run: python -m jobtracker demo --dir demo_data
+      - name: dbt build (models + 50 data tests)
+        working-directory: dbt
+        run: dbt build --profiles-dir . --project-dir .
+      - name: dbt docs (static lineage site)
+        working-directory: dbt
+        run: dbt docs generate --static --profiles-dir . --project-dir .
+      - uses: actions/upload-artifact@v4
+        with: {name: dbt-docs, path: dbt/target/static_index.html}

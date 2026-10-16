@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: stg_applications
+    description: Valid applications only (noise and saved-for-later rows excluded), typed and cleaned.
+    columns:
+      - name: application_id
+        tests: [unique, not_null]
+      - name: applied_date
+        tests: [not_null]
+      - name: current_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Applied', 'Assessment / OA', 'Interview', 'Offer', 'Rejected', 'Ghosted', 'Withdrawn']
+  - name: stg_status_events
+    description: Typed status events with their funnel stage and a date-trust flag.
+    columns:
+      - name: event_id
+        tests: [unique, not_null]
+      - name: occurred_on
+        tests: [not_null]
+  - name: stg_messages
+    description: Parser verdict per inspected Gmail message.
+    columns:
+      - name: message_id
+        tests: [unique, not_null]
