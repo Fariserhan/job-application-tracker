@@ -85,7 +85,8 @@ JOBTRACKER_DATA_DIR=demo_data streamlit run app/streamlit_app.py
 
 With your own Gmail: [docs/setup.md](docs/setup.md) (about 5 minutes for the OAuth client),
 then `python -m jobtracker sync` or the **Sync Gmail** button. On Windows,
-`launch_app.bat` starts the app.
+`launch_app.bat` starts the app and `update.bat` does everything in one double-click:
+pulls the latest version, installs requirements, syncs Gmail and opens the app.
 
 ```text
 python -m jobtracker sync [--full]   pull Gmail -> parse -> store -> warehouse
