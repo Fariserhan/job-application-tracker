@@ -280,7 +280,7 @@ class Repository:
                     continue
                 title = (payload.get("title") or "").strip()
                 desc = (payload.get("description") or "").strip()
-                text = f"{title} — {desc}" if title and desc else (title or desc)
+                text = f"{title} - {desc}" if title and desc else (title or desc)
                 conn.execute(
                     """UPDATE applications SET
                            job_description_snippet = CASE WHEN ? <> '' AND
