@@ -4,7 +4,7 @@
     python -m jobtracker eval --write    # ...and regenerate docs/parser-evaluation.md
 
 Every corpus row is one email (sender, subject, snippet, body) with a human label written
-from what the email *is* — never from what the parser outputs:
+from what the email *is*, never from what the parser outputs:
 
     {"is_application_event": bool, "status": "Applied|Assessment / OA|Interview|Offer|
      Rejected|none", "company": str, "role": str}
@@ -13,11 +13,11 @@ Each row goes through the production entry point ``parse_message(meta, body)`` w
 LLM fallback untouched (it is a separate, opt-in module), so the numbers describe the
 offline rules alone. Metrics:
 
-* event detection — precision / recall / F1 / accuracy (positive = application event)
-* status — accuracy on the true events, end to end: an event the parser missed counts as
+* event detection: precision / recall / F1 / accuracy (positive = application event)
+* status: end-to-end accuracy on the true events. An event the parser missed counts as
   a wrong status, so detection errors are never hidden by a conditional denominator
   (the conditional figure is reported alongside); plus a confusion matrix
-* company / role — normalised exact match on the true events (case, whitespace and
+* company / role: normalised exact match on the true events (case, whitespace and
   punctuation ignored; an expected "" means the email names none, so 'Unknown' / '' match)
   and a lenient variant (legal suffixes dropped / containment) shown for context only
 * a per-tag breakdown and the full failure list
@@ -53,11 +53,11 @@ _LEGAL_SUFFIX = re.compile(
 
 # --------------------------------------------------------------------- frozen history
 # The corpus was built in three batches, and the numbers below were recorded once and are
-# never recomputed — they are the honest record of how the rules generalise:
+# never recomputed. They are the record of how well the rules generalise:
 #
 #   dev        written first; every rule fix in this round was made while looking at it
 #   holdout-1  written after round-1 fixes, scored blind once (BLIND_FIRST_LOOK), then its
-#              failures drove round-2 fixes — so its *current* numbers are no longer blind
+#              failures drove round-2 fixes, so its *current* numbers are no longer blind
 #   holdout-2  written after round-2 fixes, scored blind, never tuned on
 #
 # Fixing a holdout-2 failure makes it a dev row: add a fresh blind batch before quoting a
@@ -81,10 +81,11 @@ BLIND_FIRST_LOOK = {  # each held-out batch, scored once before any fix it could
 
 # Hand-written explanations for failures that are understood but deliberately left
 # unfixed (genuinely ambiguous, beyond what deterministic rules should attempt, or in the
-# blind holdout-2 batch — fixing those would turn the blind estimate into a training score).
+# blind holdout-2 batch, where fixing them would turn the blind estimate into a training
+# score).
 KNOWN_FAILURE_NOTES: dict[str, str] = {
     "dr-applied-07": "Agency recruiter; the client employer is undisclosed. The rules store "
-                     "the agency (verified by the sender domain) — a human would leave it blank.",
+                     "the agency (verified by the sender domain). A human would leave it blank.",
     "dr-interview-07": "Reply in a thread; the employer is named only in earlier messages and "
                        "in a concatenated domain ('tasikactuarial'). Needs thread context.",
     "rj-03": "Same as dr-interview-07: employer only in the domain and earlier messages.",
@@ -98,21 +99,21 @@ KNOWN_FAILURE_NOTES: dict[str, str] = {
                      "rule bugs, deliberately left unfixed so holdout-2 stays blind.",
     "h2-rejected-01": "Blind batch: the hyphen in 'Follow-up' was read as a 'Company - Role' "
                       "separator. Rule bug, left unfixed (blind batch).",
-    "h2-assessment-01": "Blind batch: 'attached is the case exercise … send your solution' — "
+    "h2-assessment-01": "Blind batch: 'attached is the case exercise … send your solution' matches "
                         "no assessment phrase the rules know. Flagged ambiguous (0.55), so the "
                         "optional fallback would review it.",
     "h2-offer-01": "Blind batch: DocuSign envelope; employer only in 'Angsana Capital HR sent "
                    "you a document'. No rule for e-signature senders.",
     "h2-rejected-02": "Blind batch: 'we have identified candidates whose experience more "
-                      "closely matches' — an unseen rejection phrasing.",
+                      "closely matches' is an unseen rejection phrasing.",
     "h2-assessment-02": "Blind batch: unknown assessment vendor ('Penilai Assessments'); its "
                         "display name was taken as the employer.",
     "h2-interview-04": "Blind batch: role ran on into 'position tomorrow'.",
-    "h2-rejected-03": "Blind batch: 'you're no longer being considered' — unseen phrasing "
+    "h2-rejected-03": "Blind batch: 'you're no longer being considered' is unseen phrasing "
                       "(only 'no longer under consideration' is known).",
-    "h2-offer-02": "Blind batch: 'happy to offer you the role' / Malay 'menawarkan' — only "
+    "h2-offer-02": "Blind batch: 'happy to offer you the role' / Malay 'menawarkan'. Only "
                    "'pleased/delighted to offer' are known.",
-    "h2-assessment-03": "Blind batch: 'applying for the Graduate Risk Analyst programme' — "
+    "h2-assessment-03": "Blind batch: 'applying for the Graduate Risk Analyst programme'. "
                         "'programme' is not a recognised title terminator there.",
 }
 
@@ -307,7 +308,7 @@ def _field(results: list[dict], name: str) -> dict:
 
 def _splits(results: list[dict]) -> dict:
     """Headline metrics per corpus split. 'dev' rows were used while fixing rules; 'holdout'
-    rows were written afterwards and never tuned on — the honest generalisation estimate."""
+    rows were written afterwards and never tuned on, so they are the generalisation estimate."""
     out = {}
     for split in sorted({r["split"] for r in results}):
         rows = [r for r in results if r["split"] == split]
@@ -400,13 +401,13 @@ def _gate(results: list[dict]) -> dict:
 
 
 def _pct(value: float | None) -> str:
-    return "—" if value is None else f"{value * 100:.1f}%"
+    return "-" if value is None else f"{value * 100:.1f}%"
 
 
 def format_text(report: dict) -> str:
     c, d, s = report["corpus"], report["detection"], report["status"]
     lines = [
-        f"Parser evaluation — {c['rows']} labelled emails "
+        f"Parser evaluation: {c['rows']} labelled emails "
         f"({c['events']} events, {c['negatives']} negatives = {_pct(c['negative_share'])})",
         "",
         "Event detection",
@@ -461,7 +462,7 @@ def format_markdown(report: dict) -> str:
         "",
         "## Methodology",
         "",
-        f"* **Corpus** — `tests/fixtures/email_corpus.jsonl`: {c['rows']} hand-written, labelled "
+        f"* **Corpus**: `tests/fixtures/email_corpus.jsonl`: {c['rows']} hand-written, labelled "
         "emails modelled on real Malaysian / SEA job-search mail (LinkedIn, JobStreet, Workday, "
         "SuccessFactors, Oracle Cloud HCM, Greenhouse, Lever, iCIMS, Taleo, SmartRecruiters, "
         "Ashby, Hiredly, Prosple, Indeed, MYFutureJobs, recruiters writing from personal "
@@ -470,24 +471,24 @@ def format_markdown(report: dict) -> str:
         "* **Labels** were written from human judgement of what each email *is*, before the "
         "parser was run, and were not changed to fit its output. Hard rows the rules still get "
         "wrong are kept and listed below.",
-        "* **Three batches** — `dev` (written first; the rule fixes were made against it), "
+        "* **Three batches**: `dev` (written first; the rule fixes were made against it), "
         "`holdout-1` (written after the first round of fixes, scored blind once, then used for "
         "a second round) and `holdout-2` (written after the last fix, scored blind, never "
         "tuned on). Only holdout-2 is an unbiased estimate, and it is small: with 22 events, a "
         "95% interval on its status / company / role figures is roughly ±15–20 points.",
-        "* **Run** — each row goes through the production entry point "
+        "* **Run**: each row goes through the production entry point "
         "`parse_message(meta, body)`; the optional Claude fallback is not called, so these "
         "numbers describe the offline deterministic rules alone.",
-        "* **Event detection** — positive class = *is an application event* (confirmation, "
+        "* **Event detection**: positive class = *is an application event* (confirmation, "
         "assessment, interview, offer, rejection, or an employer update on an application).",
-        "* **Status** — scored on the true events, *end to end*: a missed event counts as a wrong "
+        "* **Status**: scored on the true events, *end to end*: a missed event counts as a wrong "
         "status. `Applied` covers confirmations and neutral updates. The conditional figure "
         "(only events the parser detected) is shown for reference.",
-        "* **Company / role** — on the true events; case, whitespace and punctuation are ignored. "
+        "* **Company / role**: on the true events; case, whitespace and punctuation are ignored. "
         "An empty label means the email names none, so `Unknown` / empty is correct. The "
         "*lenient* column (legal suffixes like `Sdn Bhd` / `Berhad` dropped for companies; "
-        "containment for roles) is context only — the headline is exact match.",
-        f"* **CI gate** — event F1 ≥ {g['event_f1_min']:.2f} and status accuracy ≥ "
+        "containment for roles) is context only. The headline is exact match.",
+        f"* **CI gate**: event F1 ≥ {g['event_f1_min']:.2f} and status accuracy ≥ "
         f"{g['status_accuracy_min']:.2f} (`tests/test_parser_eval.py`).",
         "",
         "## Corpus composition",
@@ -499,7 +500,7 @@ def format_markdown(report: dict) -> str:
         f"| hard negatives | {c['negatives']} ({_pct(c['negative_share'])}) |",
     ]
     for status in STATUS_LABELS:
-        out.append(f"| — {status} | {c['statuses'].get(status, 0)} |")
+        out.append(f"| - {status} | {c['statuses'].get(status, 0)} |")
     out += ["", "Sources: " + ", ".join(f"`{k}` {v}" for k, v in platform_tags.items()), "",
             "Other tags: " + ", ".join(f"`{k}` {v}" for k, v in other_tags.items()), ""]
     out += [
@@ -537,9 +538,9 @@ def format_markdown(report: dict) -> str:
         "|---|---:|---:|---:|---:|---:|",
         *_history_rows(report),
         "",
-        "The honest generalisation estimate is the **holdout-2 blind** row: it was written after "
-        "the last rule change and never tuned on. The dev and holdout-1 rows are training "
-        "scores — the rules were fixed while looking at them.",
+        "The generalisation estimate to quote is the **holdout-2 blind** row: it was written "
+        "after the last rule change and never tuned on. The dev and holdout-1 rows are "
+        "training scores, because the rules were fixed while looking at them.",
         "",
         "## Status confusion matrix",
         "",
@@ -567,7 +568,7 @@ def format_markdown(report: dict) -> str:
     out += ["", "## Known failure modes", ""]
     failures = report["failures"]
     if not failures:
-        out.append("None on this corpus — which says more about the corpus size than the "
+        out.append("None on this corpus. That says more about the corpus size than the "
                    "parser. Real inboxes will surface new templates.")
     else:
         out += ["Every row the rules still get wrong. These are kept in the corpus on purpose: "
@@ -613,7 +614,7 @@ _FAILURE_THEMES: list[str] = [
     "employers named only in an earlier message of the thread or a concatenated domain.",
     "* **Thread context.** A reply that only says \"you're all set for Thursday\" carries no "
     "employer; the store merges messages by Gmail thread, so in the app the earlier "
-    "confirmation usually supplies it — the per-email numbers here understate the "
+    "confirmation usually supplies it. The per-email numbers here understate the "
     "per-application result for those rows.",
     "* **Ambiguity flags help.** Rows the rules are unsure about are flagged (`ambiguous`, "
     "confidence < 0.75) for the optional, off-by-default LLM fallback; a recruiter writing "
@@ -631,17 +632,17 @@ def _history_rows(report: dict) -> list[str]:
                 "company": m["company_accuracy"], "role": m["role_accuracy"]}
 
     c = report["corpus"]
-    rows = [row("all — v1 parser", BASELINE_V1["all"]),
-            row("all — **current**", {"rows": c["rows"], "f1": report["detection"]["f1"],
+    rows = [row("all (v1 parser)", BASELINE_V1["all"]),
+            row("all (**current**)", {"rows": c["rows"], "f1": report["detection"]["f1"],
                                        "status": report["status"]["accuracy"],
                                        "company": report["company"]["accuracy"],
                                        "role": report["role"]["accuracy"]})]
     for split, m in report["splits"].items():
         if split in BASELINE_V1:
-            rows.append(row(f"{split} — v1 parser", BASELINE_V1[split]))
+            rows.append(row(f"{split} (v1 parser)", BASELINE_V1[split]))
         if split in BLIND_FIRST_LOOK:
-            rows.append(row(f"{split} — blind first look", BLIND_FIRST_LOOK[split]))
-        rows.append(row(f"{split} — current", current(m)))
+            rows.append(row(f"{split} (blind first look)", BLIND_FIRST_LOOK[split]))
+        rows.append(row(f"{split} (current)", current(m)))
     return rows
 
 

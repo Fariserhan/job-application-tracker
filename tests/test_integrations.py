@@ -382,7 +382,7 @@ def test_findings_report_is_labelled_and_hedged(demo):
     from jobtracker.report import build_report
 
     text = build_report(demo, demo=True)
-    assert text.startswith("# Job search analysis — synthetic demo data")
+    assert text.startswith("# Job search analysis (synthetic demo data)")
     assert "Demo dataset." in text and "95% CI" in text and "Kaplan–Meier" in text
     assert "applications** to" in text
     for banned in ("loss ratio", "ibnr", "fit score"):

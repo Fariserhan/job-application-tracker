@@ -220,3 +220,16 @@ def test_messy_v1_database_builds_a_clean_warehouse(settings):
     counts = build(settings)
     assert counts["fct_applications"] == 3          # noise and saved rows excluded
     assert not any(manifest(settings)["tests"].values())
+
+
+def test_undo_last_status_restores_and_removes_the_mistake(repo):
+    tid = repo.add_manual_application("Acme Analytics", "Data Analyst", applied_on="2026-09-01")
+    assert repo.undo_last_status(tid) is None  # only the opening event: nothing to undo
+    repo.set_status(tid, domain.OFFER, occurred_on="2026-09-10")  # the mis-click
+    assert repo.get(tid)["current_status"] == domain.OFFER
+    assert repo.undo_last_status(tid) == domain.APPLIED
+    row = repo.get(tid)
+    assert row["current_status"] == domain.APPLIED
+    assert row["last_updated"] == "2026-09-01"
+    # the mistaken event is gone, so the funnel never counts the offer
+    assert [e["to_status"] for e in repo.events(tid)] == [domain.APPLIED]
