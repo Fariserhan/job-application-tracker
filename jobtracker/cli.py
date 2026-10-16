@@ -31,12 +31,37 @@ def cmd_sync(args, settings) -> int:
     from .gmail import GmailClient
     from .sync import SyncEngine
 
+    if args.background:
+        return _background_sync(settings, full=args.full)
     source = GmailClient.from_settings(settings)
     summary = SyncEngine(settings, source, enricher=enrich_many).run(
         full=args.full, progress=_print_progress)
     for warning in summary.warnings:
         print(f"warning: {warning}")
     return 0
+
+
+def _background_sync(settings, full: bool = False) -> int:
+    """Scheduled sync: never opens a browser, never prints, appends one line per run to
+    sync.log in the data folder (the app reads the same database afterwards)."""
+    from datetime import datetime
+
+    from .enrich import enrich_many
+    from .gmail import GmailClient
+    from .sync import SyncEngine
+
+    settings.ensure_dirs()
+    log = settings.data_dir / "sync.log"
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    try:
+        source = GmailClient.from_settings(settings, interactive=False)
+        summary = SyncEngine(settings, source, enricher=enrich_many).run(full=full)
+        line, code = f"{stamp}  ok     {summary.headline()}", 0
+    except Exception as exc:  # a scheduled job has nowhere to show a traceback
+        line, code = f"{stamp}  failed {type(exc).__name__}: {exc}", 1
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write(line + "\n")
+    return code
 
 
 def cmd_build(args, settings) -> int:
@@ -167,6 +192,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p = command("sync")
     p.add_argument("--full", action="store_true", help="re-parse the whole mailbox")
+    p.add_argument("--background", action="store_true",
+                   help="for scheduled runs: no browser sign-in, log to sync.log")
     command("build")
     p = command("demo")
     p.add_argument("--dir")

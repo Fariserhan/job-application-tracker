@@ -61,3 +61,6 @@ dbt/.user.yml
 
 # update.bat: marks that the one-off full re-sync after upgrading has run
 .full-sync-done
+
+# Background (scheduled) sync log
+sync.log

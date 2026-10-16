@@ -86,6 +86,8 @@ With your own Gmail: [docs/setup.md](docs/setup.md) (about 5 minutes for the OAu
 then `python -m jobtracker sync` or the **Sync Gmail** button. On Windows,
 `launch_app.bat` starts the app and `update.bat` does everything in one double-click:
 pulls the latest version, installs requirements, syncs Gmail and opens the app.
+`auto_sync.bat` turns on a background sync (every morning and at sign-in), so the tracker
+updates itself without you opening anything.
 
 ```text
 python -m jobtracker sync [--full]   pull Gmail -> parse -> store -> warehouse

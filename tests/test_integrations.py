@@ -413,3 +413,35 @@ def test_cli_data_dir_accepted_before_or_after_subcommand(tmp_path, monkeypatch)
         with pytest.raises(SystemExit):
             cli.main(argv)
     assert seen == ["A", "B", None]
+
+
+def test_background_sync_never_opens_a_browser_and_logs_the_reason(tmp_path):
+    from jobtracker import cli
+
+    data = tmp_path / "data"
+    assert cli.main(["--data-dir", str(data), "sync", "--background"]) == 1
+    line = (data / "sync.log").read_text(encoding="utf-8").strip()
+    assert "failed" in line and "credentials.json" in line  # no OAuth client: fails fast
+
+
+def test_background_sync_reports_sign_in_needed_instead_of_prompting(tmp_path):
+    from jobtracker.gmail.auth import SignInRequired, get_credentials
+
+    creds = tmp_path / "credentials.json"
+    creds.write_text("{}", encoding="utf-8")
+    with pytest.raises(SignInRequired):
+        get_credentials(creds, tmp_path / "token.json", interactive=False)
+
+
+def test_background_sync_logs_a_successful_run(tmp_path, monkeypatch):
+    from jobtracker import cli
+    from jobtracker.demo.mailbox import DemoMailbox
+    from jobtracker.gmail import GmailClient
+
+    monkeypatch.setattr(GmailClient, "from_settings",
+                        classmethod(lambda cls, settings, interactive=True: DemoMailbox(
+                            applications=12)))
+    monkeypatch.setattr("jobtracker.enrich.enrich_many", lambda *a, **k: {})
+    data = tmp_path / "data"
+    assert cli.main(["--data-dir", str(data), "sync", "--background"]) == 0
+    assert " ok " in (data / "sync.log").read_text(encoding="utf-8")
