@@ -83,7 +83,7 @@ Settings live in `data\settings.json` (edited from the app). Environment variabl
 
 1. Push the repository to GitHub (public).
 2. [share.streamlit.io](https://share.streamlit.io) → **Create app** → pick the repo, branch
-   `main`, main file `app/streamlit_app.py`.
+   `master`, main file `app/streamlit_app.py`.
 3. Advanced settings → environment variable `JOBTRACKER_DEMO=1` (the app also falls back to
    demo mode automatically when it finds no database).
 
@@ -94,4 +94,4 @@ Put the URL in the README badge and on your CV.
 
 Repository **Settings → Pages → Source: GitHub Actions**. The `Publish dbt docs` workflow
 then deploys the dbt documentation site (model lineage, column docs, tests) on every push to
-`main`.
+`master`.
