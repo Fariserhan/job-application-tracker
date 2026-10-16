@@ -311,7 +311,7 @@ class FakeBatch:
         self.items.append((request, request_id, callback))
 
     def execute(self):
-        for request, rid, callback in self.items:
+        for _request, rid, callback in self.items:
             if rid in self.service.drop:
                 continue  # the batch silently loses this message
             callback(rid, {"id": rid, "threadId": f"t-{rid}", "internalDate": "0",
@@ -397,3 +397,19 @@ def test_report_on_empty_warehouse(settings):
     Repository(settings).init()
     build(settings)
     assert "No applications yet" in build_report(settings)
+
+
+def test_cli_data_dir_accepted_before_or_after_subcommand(tmp_path, monkeypatch):
+    from jobtracker import cli
+
+    seen = []
+
+    def stop(data_dir):
+        seen.append(data_dir)
+        raise SystemExit
+
+    monkeypatch.setattr(cli, "load_settings", stop)
+    for argv in (["export", "--data-dir", "A"], ["--data-dir", "B", "export"], ["export"]):
+        with pytest.raises(SystemExit):
+            cli.main(argv)
+    assert seen == ["A", "B", None]

@@ -154,26 +154,36 @@ def main(argv: list[str] | None = None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--data-dir", help="override the data directory")
     parser.add_argument("-v", "--verbose", action="store_true")
+    # The same flags are accepted after the subcommand too ("jobtracker export --data-dir X");
+    # SUPPRESS keeps a subcommand from overwriting a value given before it.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--data-dir", default=argparse.SUPPRESS,
+                        help="override the data directory")
+    common.add_argument("-v", "--verbose", action="store_true", default=argparse.SUPPRESS)
     sub = parser.add_subparsers(dest="command", required=True)
-    p = sub.add_parser("sync")
+
+    def command(name: str) -> argparse.ArgumentParser:
+        return sub.add_parser(name, parents=[common])
+
+    p = command("sync")
     p.add_argument("--full", action="store_true", help="re-parse the whole mailbox")
-    sub.add_parser("build")
-    p = sub.add_parser("demo")
+    command("build")
+    p = command("demo")
     p.add_argument("--dir")
     p.add_argument("--seed", type=int, default=7)
-    sub.add_parser("show")
-    sub.add_parser("check")
-    p = sub.add_parser("repair")
+    command("show")
+    command("check")
+    p = command("repair")
     p.add_argument("--apply", action="store_true")
-    sub.add_parser("reparse")
-    sub.add_parser("export")
-    p = sub.add_parser("report")
+    command("reparse")
+    command("export")
+    p = command("report")
     p.add_argument("--out")
     p.add_argument("--demo", action="store_true", help="label the report as synthetic data")
-    p = sub.add_parser("eval")
+    p = command("eval")
     p.add_argument("--write", action="store_true", help="write docs/parser-evaluation.md")
-    sub.add_parser("backup")
-    sub.add_parser("app")
+    command("backup")
+    command("app")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,

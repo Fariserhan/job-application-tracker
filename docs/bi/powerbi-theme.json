@@ -1,0 +1,288 @@
+{
+  "name": "Job Search Analytics - Editorial",
+  "dataColors": [
+    "#1D3FBB",
+    "#6B7FD7",
+    "#2E7D4F",
+    "#C04A32",
+    "#B7791F",
+    "#A39E94",
+    "#C9C3B8",
+    "#8A857C",
+    "#5F5B54"
+  ],
+  "background": "#F7F5F0",
+  "secondaryBackground": "#FFFFFF",
+  "foreground": "#191919",
+  "foregroundNeutralSecondary": "#5F5B54",
+  "foregroundNeutralTertiary": "#8A857C",
+  "backgroundLight": "#DCE3FA",
+  "backgroundNeutral": "#E3DED5",
+  "tableAccent": "#1D3FBB",
+  "good": "#2E7D4F",
+  "neutral": "#B7791F",
+  "bad": "#C04A32",
+  "maximum": "#1D3FBB",
+  "center": "#DCE3FA",
+  "minimum": "#FFFFFF",
+  "null": "#C9C3B8",
+  "hyperlink": "#1D3FBB",
+  "visitedHyperlink": "#6B7FD7",
+  "textClasses": {
+    "callout": {
+      "fontSize": 28,
+      "fontFace": "Georgia",
+      "color": "#191919"
+    },
+    "title": {
+      "fontSize": 13,
+      "fontFace": "Georgia",
+      "color": "#191919"
+    },
+    "header": {
+      "fontSize": 11,
+      "fontFace": "Segoe UI",
+      "color": "#191919"
+    },
+    "label": {
+      "fontSize": 10,
+      "fontFace": "Segoe UI",
+      "color": "#5F5B54"
+    }
+  },
+  "visualStyles": {
+    "*": {
+      "*": {
+        "background": [
+          {
+            "show": true,
+            "color": {
+              "solid": {
+                "color": "#FFFFFF"
+              }
+            },
+            "transparency": 0
+          }
+        ],
+        "border": [
+          {
+            "show": true,
+            "color": {
+              "solid": {
+                "color": "#E3DED5"
+              }
+            },
+            "radius": 0
+          }
+        ],
+        "dropShadow": [
+          {
+            "show": false
+          }
+        ],
+        "title": [
+          {
+            "show": true,
+            "fontColor": {
+              "solid": {
+                "color": "#191919"
+              }
+            },
+            "fontSize": 13,
+            "fontFamily": "Georgia",
+            "alignment": "left"
+          }
+        ],
+        "categoryAxis": [
+          {
+            "labelColor": {
+              "solid": {
+                "color": "#5F5B54"
+              }
+            },
+            "titleColor": {
+              "solid": {
+                "color": "#5F5B54"
+              }
+            },
+            "showAxisTitle": false,
+            "gridlineShow": false
+          }
+        ],
+        "valueAxis": [
+          {
+            "labelColor": {
+              "solid": {
+                "color": "#5F5B54"
+              }
+            },
+            "titleColor": {
+              "solid": {
+                "color": "#5F5B54"
+              }
+            },
+            "gridlineColor": {
+              "solid": {
+                "color": "#E3DED5"
+              }
+            },
+            "gridlineStyle": "solid"
+          }
+        ],
+        "legend": [
+          {
+            "labelColor": {
+              "solid": {
+                "color": "#5F5B54"
+              }
+            },
+            "position": "TopLeft"
+          }
+        ],
+        "labels": [
+          {
+            "color": {
+              "solid": {
+                "color": "#191919"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "page": {
+      "*": {
+        "background": [
+          {
+            "color": {
+              "solid": {
+                "color": "#F7F5F0"
+              }
+            },
+            "transparency": 0
+          }
+        ],
+        "outspace": [
+          {
+            "color": {
+              "solid": {
+                "color": "#F7F5F0"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "card": {
+      "*": {
+        "labels": [
+          {
+            "color": {
+              "solid": {
+                "color": "#1D3FBB"
+              }
+            },
+            "fontSize": 28,
+            "fontFamily": "Georgia"
+          }
+        ],
+        "categoryLabels": [
+          {
+            "color": {
+              "solid": {
+                "color": "#5F5B54"
+              }
+            },
+            "fontSize": 10
+          }
+        ]
+      }
+    },
+    "slicer": {
+      "*": {
+        "items": [
+          {
+            "fontColor": {
+              "solid": {
+                "color": "#191919"
+              }
+            },
+            "background": {
+              "solid": {
+                "color": "#FFFFFF"
+              }
+            }
+          }
+        ],
+        "header": [
+          {
+            "fontColor": {
+              "solid": {
+                "color": "#5F5B54"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "tableEx": {
+      "*": {
+        "grid": [
+          {
+            "gridHorizontal": true,
+            "gridHorizontalColor": {
+              "solid": {
+                "color": "#E3DED5"
+              }
+            },
+            "gridVertical": false,
+            "outlineColor": {
+              "solid": {
+                "color": "#191919"
+              }
+            }
+          }
+        ],
+        "columnHeaders": [
+          {
+            "fontColor": {
+              "solid": {
+                "color": "#191919"
+              }
+            },
+            "backColor": {
+              "solid": {
+                "color": "#F7F5F0"
+              }
+            },
+            "fontFamily": "Segoe UI"
+          }
+        ],
+        "values": [
+          {
+            "fontColorPrimary": {
+              "solid": {
+                "color": "#191919"
+              }
+            },
+            "backColorPrimary": {
+              "solid": {
+                "color": "#FFFFFF"
+              }
+            },
+            "fontColorSecondary": {
+              "solid": {
+                "color": "#191919"
+              }
+            },
+            "backColorSecondary": {
+              "solid": {
+                "color": "#F7F5F0"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
